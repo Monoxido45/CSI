@@ -3,7 +3,10 @@ from sklearn.base import BaseEstimator, clone
 from copy import deepcopy
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
+
+# using xgboost random forest regressor to build random forests with quantile loss
+from xgboost import XGBRegressor
 import scipy.stats as st
 
 
@@ -36,8 +39,8 @@ class ConformalLoforest(BaseEstimator):
                (iv)   base_model_type: Boolean indicating whether the base model ouputs quantiles or not. Default is False.
                (v)    cart_type: Set "CART" to obtain LOCART prediction intervals and "RF" to obtain LOFOREST prediction intervals. Default is CART.
                (vi)   split_calib: Boolean designating if we should split the calibration set into partitioning and cutoff set. Default is True.
-               (vii)  **kwargs: Additional keyword arguments passed to fit base_model.
-               (viii) weighting: Set whether we should augment the feature space with conditional variance (difficulty) estimates. Default is False.
+               (vii)  weighting: Set whether we should augment the feature space with conditional variance (difficulty) estimates. Default is False.
+               (viii) **kwargs: Additional keyword arguments passed to fit base_model.
         """
         self.base_model_type = base_model_type
         if ("Quantile" in str(nc_score)) or (base_model_type == True):
@@ -84,10 +87,13 @@ class ConformalLoforest(BaseEstimator):
         y_calib,
         random_seed=1250,
         train_size=0.5,
+        objective="mse_based",
         K=None,
         n_estimators=200,
         min_samples_leaf=100,
         min_impurity_decrease=0,
+        max_features=0.9,
+        colsample_bynode=0.9,
         **kwargs
     ):
         """
@@ -101,7 +107,7 @@ class ConformalLoforest(BaseEstimator):
                (ii)   y_calib: Calibration label array
                (iii)  random_seed: Random seed for CART or Random Forest fitted to the confomity scores.
                (iv)   train_size: Proportion of calibration data used in partitioning.
-               (v)    **kwargs: Keyword arguments to be passed to CART or Random Forest.
+               (v)    **kwargs: Keyword arguments to be passed to Random Forest or XGBoost Random Forest.
 
         Ouput: Vector of cutoffs.
         """
@@ -128,20 +134,73 @@ class ConformalLoforest(BaseEstimator):
                 res,
             )
 
-        self.RF = RandomForestRegressor(
-            random_state=random_seed,
-            min_samples_leaf=min_samples_leaf,
-            n_estimators=n_estimators,
-            min_impurity_decrease=min_impurity_decrease,
-        ).set_params(**kwargs)
+        if objective == "mse_based":
+            self.RF = RandomForestRegressor(
+                random_state=random_seed,
+                min_samples_leaf=min_samples_leaf,
+                n_estimators=n_estimators,
+                min_impurity_decrease=min_impurity_decrease,
+                max_features=max_features,
+            ).set_params(**kwargs)
+
+        # pinball loss still not working
+        elif objective == "quantile":
+            base_model = XGBRegressor(
+                n_estimators=1,
+                objective="reg:quantileerror",
+                grow_policy="depthwise",
+                verbosity=0,
+                max_leaves=0,
+                quantile_alpha=1 - self.alpha,
+                colsample_bynode=colsample_bynode,
+                min_child_weight=min_samples_leaf,
+                booster="gbtree",
+                tree_method="approx",
+                gamma=min_impurity_decrease,
+            ).set_params(**kwargs)
+
+            self.RF = BaggingRegressor(
+                base_model,
+                n_estimators=n_estimators,
+                max_features=max_features,
+                random_state=random_seed,
+                n_jobs=-1,
+            )
+
         self.RF.fit(X_calib_train, res_calib_train)
+
         if K is None:
             self.K = len(self.RF.estimators_) / 2
         else:
             self.K = K
-        self.res_leaves = self.RF.apply(X_calib_test)
+
         self.res_vector = res_calib_test
+        if objective == "mse_based" or objective == None:
+            self.objective = "mse_based"
+            self.res_leaves = self.RF.apply(X_calib_test)
+        elif objective == "quantile":
+            self.objective = "quantile"
+            # obtaining leaves by iterating over estimator
+            self.res_leaves = self.get_bagging_leaves(X_calib_test)
         return None
+
+    def get_bagging_leaves(self, X_calib):
+        estimators_list = self.RF.estimators_
+        leaves_matrix = np.zeros((X_calib.shape[0], len(estimators_list)))
+        j = 0
+        for estimator in estimators_list:
+            leaves_matrix[:, j] = estimator.apply(X_calib)
+            j += 1
+        return leaves_matrix
+
+    def bagging_apply(self, X):
+        estimators_list = self.RF.estimators_
+        leaves_matrix = np.zeros((X.shape[0], len(estimators_list)))
+        j = 0
+        for estimator in estimators_list:
+            leaves_matrix[:, j] = estimator.apply(X)
+            j += 1
+        return leaves_matrix
 
     def compute_difficulty(self, X):
         """
@@ -171,7 +230,11 @@ class ConformalLoforest(BaseEstimator):
         test_size = X_tree.shape[0]
         cutoffs = np.zeros(test_size)
         for i in range(0, test_size):
-            leaves_obs = self.RF.apply(X_tree[i, :].reshape(-1, 1))
+            if self.objective == "mse_based":
+                leaves_obs = self.RF.apply(X_tree[i, :].reshape(-1, 1))
+            else:
+                leaves_obs = self.bagging_apply(X_tree[i, :].reshape(-1, 1))
+
             # finding how many of them matches with calibration data
             matches = np.isin(self.res_leaves, leaves_obs)
             num_matches = matches.sum(axis=1)
