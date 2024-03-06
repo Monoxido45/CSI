@@ -1,2 +1,3 @@
 build/
 CP2LFI.egg-info/
+CP2LFI/__pycache__/

@@ -229,16 +229,20 @@ class ConformalLoforest(BaseEstimator):
         # obtaining cutoffs for each X on the fly
         test_size = X_tree.shape[0]
         cutoffs = np.zeros(test_size)
+
+        # obtaining all leaves for all X's
+        if self.objective == "mse_based":
+            leaves_obs = self.RF.apply(X_tree)
+        else:
+            leaves_obs = self.bagging_apply(X_tree)
+
         for i in range(0, test_size):
-            if self.objective == "mse_based":
-                leaves_obs = self.RF.apply(X_tree[i, :].reshape(-1, 1))
-            else:
-                leaves_obs = self.bagging_apply(X_tree[i, :].reshape(-1, 1))
+            leaves_obs_sel = leaves_obs[i, :]
 
             # finding how many of them matches with calibration data
-            matches = np.isin(self.res_leaves, leaves_obs)
+            matches = self.res_leaves == leaves_obs_sel
             num_matches = matches.sum(axis=1)
-            obs_idx = np.where(num_matches > self.K)[0]
+            obs_idx = np.where(num_matches >= self.K)[0]
 
             # obtaining cutoff based on found residuals
             local_res = self.res_vector[obs_idx]
