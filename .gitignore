@@ -1,3 +1,5 @@
 build/
 CP2LFI.egg-info/
 CP2LFI/__pycache__/
+data/raw/
+data/processed/
