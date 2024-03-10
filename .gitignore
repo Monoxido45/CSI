@@ -4,3 +4,4 @@ CP2LFI/__pycache__/
 data/raw/
 data/processed/
 data_scripts/__pycache__/
+experiments/figures/
