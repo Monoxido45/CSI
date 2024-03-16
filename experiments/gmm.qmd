@@ -1,0 +1,249 @@
+---
+title: "GMM experiment"
+execute:
+  keep-ipynb: true
+format: pdf
+---
+
+```{python}
+# importing packages
+from sklearn.ensemble import HistGradientBoostingRegressor
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# loforest and locart functions
+from CP2LFI.loforest import ConformalLoforest
+from CP2LFI.scores import LambdaScore
+
+from clover import Scores
+from clover import LocartSplit
+
+from copy import deepcopy
+from tqdm import tqdm
+
+from scipy import stats
+from scipy.optimize import minimize_scalar
+
+import time
+```
+\section{Comparing our methods with quantile regression in a GMM setting}
+Taking $\theta \in \Theta = [0,5]$ we consider a one-dimensional Normal mixture with unknown mean but known unit variance:
+\begin{align*}
+X \sim 0.5 N(\theta, 1) + 0.5 N(-\theta, 1)
+\end{align*}
+We consider three different sample sizes:
+$$ N = 10, 100, 1000 $$
+
+```{python}
+# simulator
+def sim_gmm(n, theta):
+    group = np.random.binomial(n=1, p=0.5, size=n)
+    X = (((group == 0)*(np.random.normal(theta, 1, size = n))) + 
+    ((group == 1)*(np.random.normal(-theta, 1, size = n))))
+    return X
+
+# randomly sampling from gmm
+def sample_gmm(n, N, seed = 450):
+    np.random.seed(seed)
+    thetas = np.random.uniform(0, 5, size = n)
+    lambdas = np.zeros(n)
+    i = 0 
+    for theta in tqdm(thetas, desc = "Simulating lambdas and thetas"):
+        X = sim_gmm(N, theta)
+        lambdas[i] = compute_lrt_statistic(theta, X)
+        i += 1
+    return thetas, lambdas
+
+
+# likelihood function
+def l_func(theta, x):
+    # prob from X_i
+    p_xi = np.zeros(x.shape[0])
+    i = 0
+    for x_i in x:
+        p_xi = np.log((0.5*stats.norm.pdf(x_i, loc = theta, scale = 1)) + (0.5*stats.norm.pdf(x_i, loc = -theta, scale = 1)))
+        i += 1
+    return -(np.sum(p_xi))
+
+# likelihood ratio statistic
+def compute_lrt_statistic(theta_0, X):
+    # computing MLE
+    res = minimize_scalar(l_func, args = (X), bounds = (0, 5)) 
+    mle_theta = res.x
+    lrt_stat = -2*((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
+    return lrt_stat
+
+# naive method
+def naive(alpha, n_grid = 250, B = 1000, N = 100, lower = 0, upper = 5, seed = 250):
+    np.random.seed(seed)
+    thetas = np.linspace(lower, upper, n_grid)
+    quantiles = {}
+    for theta in tqdm(thetas, desc = "Obtaining naive quantiles"):
+        LRT_stat = np.zeros(B)
+        for i in range(0, B):
+            X = sim_gmm(N, theta)
+            LRT_stat[i] = compute_lrt_statistic(theta, X)
+        quantiles[theta] = np.quantile(LRT_stat, q = 1 - alpha)
+    return quantiles
+
+# naive predict function
+def predict_naive_quantile(theta_grid, quantiles_dict):
+    thetas_values = np.array(list(quantiles_dict.keys()))
+    quantiles_list = []
+    for theta in theta_grid:
+        idx = thetas_values[int(np.argmin(np.abs(theta - thetas_values)))]
+        quantiles_list.append(quantiles_dict[idx])
+    return quantiles_list
+```
+
+Function to evaluate coverage for a given sample size $N$:
+
+```{python}
+def evaluate_coverage(quantiles_dict, thetas, alpha=0.05, n=500, N=100):
+    err_data = np.zeros((thetas.shape[0], 4))
+    coverage_data = np.zeros((thetas.shape[0], 4))
+    j = 0
+    for theta in tqdm(thetas, desc="Computing coverage for each method"):
+        # generating several lambdas
+        LRT_stat = np.zeros(n)
+        for i in range(0, n):
+            samples = sim_gmm(N, theta)
+            LRT_stat[i] = compute_lrt_statistic(theta, samples)
+
+        # comparing coverage of methods
+        locart_cover = np.mean(LRT_stat <= quantiles_dict["locart"][j])
+        loforest_cover = np.mean(LRT_stat <= quantiles_dict["loforest"][j])
+        boosting_cover = np.mean(LRT_stat <= quantiles_dict["boosting"][j])
+        naive_cover = np.mean(LRT_stat <= quantiles_dict["naive"][j])
+
+        # appending the errors
+        err_locart = np.abs(locart_cover - (1 - alpha))
+        err_loforest = np.abs(loforest_cover - (1 - alpha))
+        err_boosting = np.abs(boosting_cover - (1 - alpha))
+        err_naive = np.abs(naive_cover - (1 - alpha))
+
+        # saving in numpy array
+        err_data[j, :] = np.array([err_locart, err_loforest, err_boosting, err_naive])
+        coverage_data[j, :] = np.array(
+            [locart_cover, loforest_cover, boosting_cover, naive_cover]
+        )
+        j += 1
+
+    # obtaining MAE and standard error for each method
+    mae_vector, std_vector = np.mean(err_data, axis=0), np.std(err_data, axis=0)
+    stats_data = pd.DataFrame(
+        {
+            "methods": ["LOCART", "LOFOREST", "boosting", "naive"],
+            "MAE": mae_vector,
+            "str": std_vector / (np.sqrt(thetas.shape[0])),
+        }
+    )
+
+    coverage_data = pd.DataFrame(
+        {
+            "thetas": thetas,
+            "LOCART": coverage_data[:, 0],
+            "LOFOREST": coverage_data[:, 1],
+            "boosting": coverage_data[:, 2],
+            "naive": coverage_data[:, 3],
+        }
+    )
+    return [stats_data, coverage_data]
+```
+
+Now, we compare all methods fixing $\alpha = 0.05$, $N = 100$ and $B = 1000$ for locart, loforest and boosting and n_grid = 30 for naive. Starting by fitting naive:
+```{python}
+# running naive
+N, B, alpha = 100, 1000, 0.05
+
+start_time = time.time()
+naive_quantiles = naive(alpha, n_grid = 30)
+end_time = time.time()
+
+running_time = end_time - start_time
+print(f"Naive running time: {running_time} seconds.")
+```
+
+Simulating $\theta$ and $\lambda$ to fit the models:
+
+```{python}
+thetas, model_lambdas = sample_gmm(n = B, N = N)
+model_thetas = thetas.reshape(-1, 1)
+```
+
+Fitting all other methods:
+```{python}
+# locart quantiles
+start_time = time.time()
+locart_object = LocartSplit(LambdaScore, None, alpha = alpha, is_fitted = True, split_calib = False)
+locart_quantiles = locart_object.calib(model_thetas, model_lambdas, min_samples_leaf = 100)
+end_time = time.time()
+print(f"LOCART running time: {end_time - start_time} seconds.")
+
+# loforest quantiles
+start_time = time.time()
+loforest_object = ConformalLoforest(LambdaScore, None, alpha = alpha, is_fitted = True, split_calib = False)
+loforest_object.calibrate(model_thetas, model_lambdas, min_samples_leaf = 100)
+end_time = time.time()
+print(f"LOFOREST running time: {end_time - start_time} seconds.")
+
+# boosting quantiles
+start_time = time.time()
+model = HistGradientBoostingRegressor(loss="quantile", quantile = 1 - alpha, random_state = 105)
+model.fit(model_thetas, model_lambdas)
+end_time = time.time()
+print(f"Boosting running time: {end_time - start_time} seconds.")
+```
+
+Predicting for $theta$ in a relatively thin grid:
+
+```{python}
+n_out = 45
+thetas = np.linspace(0.001, 4.999, n_out)
+
+# naive quantiles
+naive_list = predict_naive_quantile(thetas, naive_quantiles)
+
+# locart quantiles
+idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
+list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
+
+# loforest
+loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
+
+# boosting
+boosting_quantiles = model.predict(thetas.reshape(-1, 1))
+
+# dictionary of quantiles
+quantile_dict = {
+    "naive": naive_list,
+    "locart": list_locart_quantiles,
+    "loforest": loforest_cutoffs,
+    "boosting": boosting_quantiles,
+}
+```
+Obtaining coverage data for $N = 100$:
+```{python}
+cover_data = evaluate_coverage(quantile_dict, thetas)
+```
+Analising MAE and std
+```{python}
+cover_data[0]
+```
+Visualizing coverage:
+```{python}
+# Melt the coverage data
+coverage_data_melted = pd.melt(
+    cover_data[1], id_vars=["thetas"], var_name="method", value_name="coverage"
+)
+
+# Plot the coverage as function of the thetas generated
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=coverage_data_melted, x="thetas", y="coverage", hue="method")
+plt.title("Coverage as function of the thetas generated")
+plt.xlabel("Thetas")
+plt.ylabel("Coverage")
+plt.show()
+```
