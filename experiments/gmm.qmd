@@ -1,6 +1,7 @@
 ---
 title: "GMM experiment"
 execute:
+  warning: false
   keep-ipynb: true
 format: pdf
 ---
@@ -40,17 +41,19 @@ $$ N = 10, 100, 1000 $$
 # simulator
 def sim_gmm(n, theta):
     group = np.random.binomial(n=1, p=0.5, size=n)
-    X = (((group == 0)*(np.random.normal(theta, 1, size = n))) + 
-    ((group == 1)*(np.random.normal(-theta, 1, size = n))))
+    X = ((group == 0) * (np.random.normal(theta, 1, size=n))) + (
+        (group == 1) * (np.random.normal(-theta, 1, size=n))
+    )
     return X
 
+
 # randomly sampling from gmm
-def sample_gmm(n, N, seed = 450):
+def sample_gmm(n, N, seed=450):
     np.random.seed(seed)
-    thetas = np.random.uniform(0, 5, size = n)
+    thetas = np.random.uniform(0, 5, size=n)
     lambdas = np.zeros(n)
-    i = 0 
-    for theta in tqdm(thetas, desc = "Simulating lambdas and thetas"):
+    i = 0
+    for theta in tqdm(thetas, desc="Simulating lambdas and thetas"):
         X = sim_gmm(N, theta)
         lambdas[i] = compute_lrt_statistic(theta, X)
         i += 1
@@ -59,34 +62,37 @@ def sample_gmm(n, N, seed = 450):
 
 # likelihood function
 def l_func(theta, x):
-    # prob from X_i
-    p_xi = np.zeros(x.shape[0])
-    i = 0
-    for x_i in x:
-        p_xi = np.log((0.5*stats.norm.pdf(x_i, loc = theta, scale = 1)) + (0.5*stats.norm.pdf(x_i, loc = -theta, scale = 1)))
-        i += 1
-    return -(np.sum(p_xi))
+    # prob from X
+    p_x = np.log(
+        (0.5 * stats.norm.pdf(x, loc=theta, scale=1))
+        + (0.5 * stats.norm.pdf(x, loc=-theta, scale=1))
+    )
+    return -(np.sum(p_x))
+
 
 # likelihood ratio statistic
-def compute_lrt_statistic(theta_0, X):
-    # computing MLE
-    res = minimize_scalar(l_func, args = (X), bounds = (0, 5)) 
+def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
+    # computing MLE by grid
+    res = minimize_scalar(l_func, args=(X), bounds=(0, 5))
     mle_theta = res.x
-    lrt_stat = -2*((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
+    lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
 
+
 # naive method
-def naive(alpha, n_grid = 250, B = 1000, N = 100, lower = 0, upper = 5, seed = 250):
+def naive(alpha, B=1000, N=100, lower=0, upper=5, seed=250, naive_n=100):
     np.random.seed(seed)
+    n_grid = int(B / naive_n)
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
-    for theta in tqdm(thetas, desc = "Obtaining naive quantiles"):
+    for theta in tqdm(thetas, desc="Obtaining naive quantiles"):
         LRT_stat = np.zeros(B)
         for i in range(0, B):
             X = sim_gmm(N, theta)
             LRT_stat[i] = compute_lrt_statistic(theta, X)
-        quantiles[theta] = np.quantile(LRT_stat, q = 1 - alpha)
+        quantiles[theta] = np.quantile(LRT_stat, q=1 - alpha)
     return quantiles
+
 
 # naive predict function
 def predict_naive_quantile(theta_grid, quantiles_dict):
@@ -153,23 +159,27 @@ def evaluate_coverage(quantiles_dict, thetas, alpha=0.05, n=500, N=100):
     return [stats_data, coverage_data]
 ```
 
-Now, we compare all methods fixing $\alpha = 0.05$, $N = 100$ and $B = 1000$ for locart, loforest and boosting and n_grid = 30 for naive. Starting by fitting naive:
+Now, we compare all methods fixing $\alpha = 0.05$, $N = 100$ and $B = 1000$ for locart, loforest and boosting and n_grid = 30 for naive:
+
+```{python}
+# fixing parameters
+N, B, alpha = 100, 1000, 0.05
+```
+Starting by fitting naive:
 ```{python}
 # running naive
-N, B, alpha = 100, 1000, 0.05
-
 start_time = time.time()
-naive_quantiles = naive(alpha, n_grid = 30)
+naive_quantiles = naive(alpha, B = B, N = N)
 end_time = time.time()
 
 running_time = end_time - start_time
 print(f"Naive running time: {running_time} seconds.")
 ```
 
-Simulating $\theta$ and $\lambda$ to fit the models:
+Sampling $\theta$ and $\lambda$ to fit the models:
 
 ```{python}
-thetas, model_lambdas = sample_gmm(n = B, N = N)
+thetas, model_lambdas = sample_gmm(n = B, N = N, seed = 45)
 model_thetas = thetas.reshape(-1, 1)
 ```
 
@@ -185,13 +195,14 @@ print(f"LOCART running time: {end_time - start_time} seconds.")
 # loforest quantiles
 start_time = time.time()
 loforest_object = ConformalLoforest(LambdaScore, None, alpha = alpha, is_fitted = True, split_calib = False)
-loforest_object.calibrate(model_thetas, model_lambdas, min_samples_leaf = 100)
+loforest_object.calibrate(model_thetas, model_lambdas, min_samples_leaf = 300)
 end_time = time.time()
 print(f"LOFOREST running time: {end_time - start_time} seconds.")
 
 # boosting quantiles
 start_time = time.time()
-model = HistGradientBoostingRegressor(loss="quantile", quantile = 1 - alpha, random_state = 105)
+model = HistGradientBoostingRegressor(loss="quantile", max_iter = 1000,
+quantile = 1 - alpha, random_state = 105, n_iter_no_change = 20, early_stopping = True)
 model.fit(model_thetas, model_lambdas)
 end_time = time.time()
 print(f"Boosting running time: {end_time - start_time} seconds.")
@@ -200,7 +211,7 @@ print(f"Boosting running time: {end_time - start_time} seconds.")
 Predicting for $theta$ in a relatively thin grid:
 
 ```{python}
-n_out = 45
+n_out = 300
 thetas = np.linspace(0.001, 4.999, n_out)
 
 # naive quantiles
@@ -226,24 +237,389 @@ quantile_dict = {
 ```
 Obtaining coverage data for $N = 100$:
 ```{python}
-cover_data = evaluate_coverage(quantile_dict, thetas)
+cover_data = evaluate_coverage(quantile_dict, thetas, n = 1000)
 ```
-Analising MAE and std
+Analising MAE and standard errors:
 ```{python}
-cover_data[0]
+#| echo: false
+keys = cover_data[0].iloc[:, 0].values
+mae = cover_data[0].iloc[:, 1].values
+std_err = cover_data[0].iloc[:, 2].values
+
+plt.figure(figsize=(10, 6))
+plt.errorbar(keys, mae, yerr=std_err, fmt='o')
+plt.xlabel('Method')
+plt.ylabel('Error')
+plt.title('Coverage MAE error bars for random thetas and lambdas used in training')
+plt.xticks(rotation=90)  # Rotate x-axis labels for better visibility
+plt.show()
 ```
-Visualizing coverage:
+Visualizing coverage as a function of $x$:
 ```{python}
+#| echo: false
 # Melt the coverage data
 coverage_data_melted = pd.melt(
-    cover_data[1], id_vars=["thetas"], var_name="method", value_name="coverage"
-)
-
+    cover_data[1], id_vars=["thetas"], var_name="method", value_name="coverage")
 # Plot the coverage as function of the thetas generated
-plt.figure(figsize=(10, 6))
-sns.lineplot(data=coverage_data_melted, x="thetas", y="coverage", hue="method")
-plt.title("Coverage as function of the thetas generated")
-plt.xlabel("Thetas")
-plt.ylabel("Coverage")
+g = sns.FacetGrid(coverage_data_melted, col="method", hue = "method",
+ col_wrap = 2, height=8, aspect=1.10, palette = "Set1")
+g.map(sns.lineplot, "thetas", "coverage")
+g.add_legend()
+g.set_titles("{col_name}")
+g.set_xlabels(r"$\theta$")
+g.set_ylabels("Coverage")
 plt.show()
+```
+Now, we compute the coverage and MAE's for each method across three sample sizes $N$, through the following functions:
+```{python}
+# function to compute all quantiles in a theta grid
+def obtain_quantiles(
+    thetas, N, B=1000, alpha=0.05, naive_seed=45, min_samples_leaf=100, naive_n=500
+):
+    # fitting and predicting naive
+    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n)
+    naive_list = predict_naive_quantile(thetas, naive_quantiles)
+
+    # simulating to fit models
+    theta_sim, model_lambdas = sample_gmm(n=B, N=N, seed=45)
+    model_thetas = theta_sim.reshape(-1, 1)
+
+    locart_object = LocartSplit(
+        LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
+    )
+    locart_quantiles = locart_object.calib(
+        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+    )
+
+    # loforest quantiles
+    loforest_object = ConformalLoforest(
+        LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
+    )
+    loforest_object.calibrate(
+        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+    )
+
+    # boosting quantiles
+    model = HistGradientBoostingRegressor(
+        loss="quantile",
+        max_iter=100,
+        max_depth=3,
+        quantile=1 - alpha,
+        random_state=105,
+        n_iter_no_change=15,
+        early_stopping=True,
+    )
+    model.fit(model_thetas, model_lambdas)
+
+    # naive quantiles
+    naive_list = predict_naive_quantile(thetas, naive_quantiles)
+
+    # locart quantiles
+    idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
+    list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
+
+    # loforest
+    loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
+
+    # boosting
+    boosting_quantiles = model.predict(thetas.reshape(-1, 1))
+
+    # dictionary of quantiles
+    quantile_dict = {
+        "naive": naive_list,
+        "locart": list_locart_quantiles,
+        "loforest": loforest_cutoffs,
+        "boosting": boosting_quantiles,
+    }
+
+    return quantile_dict
+
+
+# evaluate coverage for several N's and B = 1000
+def evaluate_coverage_N(
+    thetas,
+    N=np.array([10, 100, 1000]),
+    B=1000,
+    alpha=0.05,
+    n=1000,
+    seed=45,
+    min_samples_leaf=100,
+    naive_n=100,
+):
+    coverage_data = np.zeros((thetas.shape[0] * N.shape[0], 4))
+    N_list = []
+    N_list_cover = []
+    methods_list = []
+    np.random.seed(seed)
+    seeds = np.random.choice(np.arange(0, 10**4, 1), N.shape[0], replace=False)
+    k = 0
+    j = 0
+    for N_fixed in tqdm(N, desc="Computing coverage for each N"):
+        # computing all quantiles for fixed N
+        quantiles_dict = obtain_quantiles(
+            thetas,
+            N=N_fixed,
+            B=B,
+            alpha=alpha,
+            naive_seed=seeds[k],
+            min_samples_leaf=min_samples_leaf,
+            naive_n=naive_n,
+        )
+        err_data = np.zeros((thetas.shape[0], 4))
+        l = 0
+        for theta in tqdm(thetas, desc="Computing coverage for each method"):
+            # generating several lambdas
+            LRT_stat = np.zeros(n)
+            for i in range(0, n):
+                samples = sim_gmm(N_fixed, theta)
+                LRT_stat[i] = compute_lrt_statistic(theta, samples)
+
+            # comparing coverage of methods
+            locart_cover = np.mean(LRT_stat <= quantiles_dict["locart"][l])
+            loforest_cover = np.mean(LRT_stat <= quantiles_dict["loforest"][l])
+            boosting_cover = np.mean(LRT_stat <= quantiles_dict["boosting"][l])
+            naive_cover = np.mean(LRT_stat <= quantiles_dict["naive"][l])
+
+            # appending the errors
+            err_locart = np.abs(locart_cover - (1 - alpha))
+            err_loforest = np.abs(loforest_cover - (1 - alpha))
+            err_boosting = np.abs(boosting_cover - (1 - alpha))
+            err_naive = np.abs(naive_cover - (1 - alpha))
+
+            # saving in numpy array
+            err_data[l, :] = np.array(
+                [err_locart, err_loforest, err_boosting, err_naive]
+            )
+
+            coverage_data[j, :] = np.array(
+                [locart_cover, loforest_cover, boosting_cover, naive_cover]
+            )
+            N_list_cover.append(N_fixed)
+
+            j += 1
+            l += 1
+        methods_list.extend(["LOCART", "LOFOREST", "boosting", "naive"])
+        if k == 0:
+            mae_vector = np.mean(err_data, axis=0)
+            std_vector = np.std(err_data, axis=0) / (np.sqrt(thetas.shape[0]))
+        else:
+            mean = np.mean(err_data, axis=0)
+            std = np.std(err_data, axis=0) / (np.sqrt(thetas.shape[0]))
+            mae_vector, std_vector = np.concatenate((mae_vector, mean)), np.concatenate(
+                (std_vector, std)
+            )
+        k += 1
+        N_list.extend([N_fixed] * 4)
+
+    # obtaining MAE and standard error for each method
+    stats_data = pd.DataFrame(
+        {
+            "methods": methods_list,
+            "N": N_list,
+            "MAE": mae_vector,
+            "se": std_vector,
+        }
+    )
+
+    coverage_data = pd.DataFrame(
+        {
+            "thetas": np.tile(thetas, N.shape[0]),
+            "N": N_list_cover,
+            "LOCART": coverage_data[:, 0],
+            "LOFOREST": coverage_data[:, 1],
+            "boosting": coverage_data[:, 2],
+            "naive": coverage_data[:, 3],
+        }
+    )
+    return [stats_data, coverage_data]
+```
+Computing coverage:
+```{python}
+#| output: false
+n_out = 300
+thetas = np.linspace(0.001, 4.999, n_out)
+
+coverage_data_N_1000 = evaluate_coverage_N(thetas, B = 1000, naive_n = 100, n = 1000)
+```
+Plotting MAE and standard error for each method and several $N$:
+```{python}
+#| echo: false
+fig, ax = plt.subplots(ncols=3, figsize=(10, 6))
+# data for first subplot
+data_10 = coverage_data_N_1000[0].query("N == 10")
+keys = data_10.iloc[:, 0].values
+mae = data_10.iloc[:, 2].values
+std_err = data_10.iloc[:, 3].values
+ax[0].errorbar(keys, mae, yerr=std_err, fmt="o")
+ax[0].set_xlabel("Method")
+ax[0].set_ylabel("Error")
+ax[0].set_title("Estimated MAE for N = 10")
+
+
+data_100 = coverage_data_N_1000[0].query("N == 100")
+keys = data_100.iloc[:, 0].values
+mae = data_100.iloc[:, 2].values
+std_err = data_100.iloc[:, 3].values
+ax[1].errorbar(keys, mae, yerr=std_err, fmt="o")
+ax[1].set_xlabel("Method")
+ax[1].set_ylabel("Error")
+ax[1].set_title("Estimated MAE for N = 100")
+
+
+data_1000 = coverage_data_N_1000[0].query("N == 1000")
+keys = data_1000.iloc[:, 0].values
+mae = data_1000.iloc[:, 2].values
+std_err = data_1000.iloc[:, 3].values
+ax[2].errorbar(keys, mae, yerr=std_err, fmt="o")
+ax[2].set_ylabel("Error")
+ax[2].set_title("Estimated MAE for N = 1000")
+
+for a in ax:
+    a.set_xticklabels(a.get_xticklabels(), rotation=90)
+plt.tight_layout()
+plt.show()
+```
+Plotting the coverage line of all methods:
+```{python}
+# | echo: false
+# plotting coverage
+coverage_data_melted = pd.melt(
+    coverage_data_N_1000[1],
+    id_vars=["thetas", "N"],
+    var_name="method",
+    value_name="coverage",
+)
+# Plot the coverage as function of the thetas generated
+g = sns.FacetGrid(
+    coverage_data_melted,
+    row="N",
+    col="method",
+    hue="method",
+    height=8,
+    aspect=1.20,
+    palette="Set1",
+    margin_titles=True,
+)
+g.map(sns.lineplot, "thetas", "coverage")
+g.add_legend()
+g.set_titles("{col_name}")
+g.set_xlabels(r"$\theta$")
+g.set_ylabels("Coverage")
+plt.tight_layout()
+plt.show()
+```
+Increasing $B$ to 5000 samples and testing:
+```{python}
+#| output: false
+coverage_data_N_5000 = evaluate_coverage_N(thetas, B=5000, naive_n=250, min_samples_leaf=300, n = 1000)
+```
+Plotting all results again:
+```{python}
+#| echo: false
+fig, ax = plt.subplots(ncols = 3, figsize=(10, 6))
+# data for first subplot
+data_10 = coverage_data_N_5000[0].query('N == 10')
+keys = data_10.iloc[:, 0].values
+mae = data_10.iloc[:, 2].values
+std_err = data_10.iloc[:, 3].values
+ax[0].errorbar(keys, mae, yerr = std_err, fmt = 'o')
+ax[0].set_xlabel('Method')
+ax[0].set_ylabel('Error')
+ax[0].set_title('Estimated MAE for N = 10')
+
+
+data_100 = coverage_data_N_5000[0].query('N == 100')
+keys = data_100.iloc[:, 0].values
+mae = data_100.iloc[:, 2].values
+std_err = data_100.iloc[:, 3].values
+ax[1].errorbar(keys, mae, yerr = std_err, fmt = 'o')
+ax[1].set_xlabel('Method')
+ax[1].set_ylabel('Error')
+ax[1].set_title('Estimated MAE for N = 100')
+
+
+data_1000 = coverage_data_N_5000[0].query('N == 1000')
+keys = data_1000.iloc[:, 0].values
+mae = data_1000.iloc[:, 2].values
+std_err = data_1000.iloc[:, 3].values
+ax[2].errorbar(keys, mae, yerr = std_err, fmt = 'o')
+ax[2].set_xlabel('Method')
+ax[2].set_ylabel('Error')
+ax[2].set_title('Estimated MAE for N = 1000')
+
+for a in ax:
+    a.set_xticklabels(a.get_xticklabels(), rotation=90)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| echo: false
+# plotting coverage
+coverage_data_melted = pd.melt(
+    coverage_data_N_5000[1],
+    id_vars=["thetas", "N"],
+    var_name="method",
+    value_name="coverage",
+)
+# Plot the coverage as function of the thetas generated
+g = sns.FacetGrid(
+    coverage_data_melted,
+    row="N",
+    col="method",
+    hue="method",
+    height= 8,
+    aspect=1.20,
+    palette="Set1",
+    margin_titles=True,
+)
+g.map(sns.lineplot, "thetas", "coverage")
+g.add_legend()
+g.set_titles("{col_name}")
+g.set_xlabels(r"$\theta$")
+g.set_ylabels("Coverage")
+plt.tight_layout()
+plt.show()
+```
+As the naive method performed very well in all cases, lets check if the distribution of $\lambda$ is invariant across $\theta$ through:
+```{python}
+#| echo: false
+# simulating and comparing four samples
+np.random.seed(145)
+lambdas_1, lambdas_2, lambdas_3, lambdas_4 = np.zeros(1000), np.zeros(1000), np.zeros(1000), np.zeros(1000)
+
+for i in range(0, 1000):
+    X = sim_gmm(1000, 0.1)
+    lambdas_1[i] = compute_lrt_statistic(0.1, X)
+
+    X = sim_gmm(1000, 1.5)
+    lambdas_2[i] = compute_lrt_statistic(1.5, X)
+
+    X = sim_gmm(1000, 3)
+    lambdas_3[i] = compute_lrt_statistic(3, X)
+
+    X = sim_gmm(1000, 4.5)
+    lambdas_4[i] = compute_lrt_statistic(4.5, X)
+# plotting histograms
+fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+
+axs[0, 0].hist(lambdas_1, bins=30, color='blue', alpha=0.7)
+axs[0, 0].set_title(r'Histogram for $\theta = 0.1$')
+axs[0, 0].set_xlabel(r'\lambda(\theta, X)')
+axs[0, 0].set_ylabel('Frequency')
+
+axs[0, 1].hist(lambdas_2, bins=30, color='red', alpha=0.7)
+axs[0, 1].set_title(r'Histogram for $\theta = 1.5$')
+axs[0, 1].set_xlabel(r'\lambda(\theta, X)')
+axs[0, 1].set_ylabel('Frequency')
+
+axs[1, 0].hist(lambdas_3, bins=30, color='green', alpha=0.7)
+axs[1, 0].set_title(r'Histogram for $\theta = 3$')
+axs[1, 0].set_xlabel(r'\lambda(\theta, X)')
+axs[1, 0].set_ylabel('Frequency')
+
+axs[1, 1].hist(lambdas_4, bins=30, color='purple', alpha=0.7)
+axs[1, 1].set_title(r'Histogram for $\theta = 4.5$')
+axs[1, 1].set_xlabel(r'\lambda(\theta, X)')
+axs[1, 1].set_ylabel('Frequency')
 ```
