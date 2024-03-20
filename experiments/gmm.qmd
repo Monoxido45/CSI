@@ -32,9 +32,9 @@ import time
 \section{Comparing our methods with quantile regression in a GMM setting}
 Taking $\theta \in \Theta = [0,5]$ we consider a one-dimensional Normal mixture with unknown mean but known unit variance:
 \begin{align*}
-X \sim 0.5 N(\theta, 1) + 0.5 N(-\theta, 1)
+X \sim 0.5 N(\theta, 1) + 0.5 N(-\theta, 1) ,
 \end{align*}
-We consider three different sample sizes:
+We want to derive a confidence set for $\theta$. In this example, consider three different sample sizes:
 $$ N = 10, 100, 1000 $$
 
 ```{python}
