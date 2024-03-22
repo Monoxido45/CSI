@@ -88,7 +88,7 @@ def naive(alpha, B=1000, N=100, lower=-5, upper=5, seed=250, naive_n=100, sigma=
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
     for theta in thetas:
-        lambdas = sim_lambda(B=B, N=N, theta=theta, sigma=sigma)
+        lambdas = sim_lambda(B=naive_n, N=N, theta=theta, sigma=sigma)
         quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
@@ -154,7 +154,9 @@ def obtain_quantiles(
     sample_seed=25,
 ):
     # fitting and predicting naive
-    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, sigma=sigma)
+    naive_quantiles = naive(
+        alpha=alpha, B=B, N=N, naive_n=naive_n, sigma=sigma, seed=naive_seed
+    )
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
