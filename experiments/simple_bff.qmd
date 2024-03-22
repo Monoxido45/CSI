@@ -528,7 +528,7 @@ mae_stats = compute_MAE_N(
 
 Plotting all results:
 ```{python}
-#| echo: false
+# | echo: false
 # Create a line plot with error bars
 sns.set(style="white", font_scale=3.5)
 g = sns.FacetGrid(
