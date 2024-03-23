@@ -46,7 +46,8 @@ def sim_gmm(n, theta):
     )
     return X
 
-def sim_lambda(theta, B = 1000, N = 100):
+
+def sim_lambda(theta, B=1000, N=100):
     LRT_stat = np.zeros(B)
     for i in range(0, B):
         X = sim_gmm(N, theta)
@@ -93,7 +94,7 @@ def naive(alpha, B=1000, N=100, lower=0, upper=5, seed=250, naive_n=100):
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
     for theta in thetas:
-        LRT_stat = sim_lambda(theta = theta, B = B, N = N)
+        LRT_stat = sim_lambda(theta=theta, B=naive_n, N=N)
         quantiles[theta] = np.quantile(LRT_stat, q=1 - alpha)
     return quantiles
 
@@ -173,7 +174,7 @@ Starting by fitting naive:
 ```{python}
 # running naive
 start_time = time.time()
-naive_quantiles = naive(alpha, B = B, N = N)
+naive_quantiles = naive(alpha, B = B, N = N, naive_n = 500)
 end_time = time.time()
 
 running_time = end_time - start_time

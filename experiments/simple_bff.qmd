@@ -522,7 +522,7 @@ mae_stats = compute_MAE_N(
     N=np.array([1, 50, 100, 1000]),
     naive_n=500,
     min_samples_leaf=300,
-    seed=1250,
+    seed=45,
 )
 ```
 
@@ -540,6 +540,7 @@ g = sns.FacetGrid(
     hue="methods",
     palette="Set1",
     margin_titles=True,
+    sharey=False,
 )
 g.map(plt.errorbar, "B", "MAE", "se", marker="o", fmt="-o")
 g.add_legend()
