@@ -24,22 +24,27 @@ original_path = os.getcwd()
 def sim_lambda(theta, B = 1000, N = 100):
     lambdas = np.zeros(B)
     theoretical = np.e**(-theta)
-    for i in range(0, B):
+    for k in range(0, B):
         exp = np.random.exponential(1/theta, N)
-        empirical = (len([i for i in exp if i > 1])/len(exp))
-        lambdas[i] = np.abs(theoretical - empirical)
+        empirical = len([i for i in exp if i > 1])/len(exp)
+        lambdas[k] = np.abs(theoretical - empirical)
     return lambdas
 
-def train_naive(alpha, B = 1000, N = 100, naive_n = 500, lower = 0.001, upper = 6.999, seed = 45):
+def train_naive(alpha, B = 1000, N = 100, naive_n = 500, lower = 0.0001, upper = 6.9999, seed = 45):
     # simulating by a fixed theta_grid with size compatible with the amount of samples we want to simulate
     np.random.seed(seed)
     n_grid = int(B / naive_n)
+    if n_grid > 1:
+        step = (upper - lower)/n_grid
+        thetas_fixed = np.arange(lower, upper, step)
+    else:
+        step = (upper - lower)/2
+        thetas_fixed = np.array([np.arange(lower, upper, step)[1]])
+      
     thetas_fixed = np.linspace(lower, upper, n_grid)
     
     quantiles = {}
     for theta in thetas_fixed:
-        diff = []
-        theoretical = np.e**(-theta)
         diff = sim_lambda(theta, B = n_grid, N = N)
         quantiles[theta] = np.quantile(diff, q = 1 - alpha)
     return quantiles
@@ -65,8 +70,6 @@ def generate_parameters_random(B = 5000, random_seed = 45, N = 1000):
         i += 1
     return random_theta_grid, lambdas
 
-
-
 def obtain_quantiles(
     thetas,
     N,
@@ -75,7 +78,6 @@ def obtain_quantiles(
     naive_seed=45,
     min_samples_leaf=100,
     naive_n=500,
-    sigma=0.25,
     sample_seed=25,
 ):
     # fitting and predicting naive
@@ -113,9 +115,6 @@ def obtain_quantiles(
     )
     model.fit(model_thetas, model_lambdas)
 
-    # naive quantiles
-    naive_list = predict_naive_quantile(thetas, naive_quantiles)
-
     # locart quantiles
     idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
     list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
@@ -140,14 +139,13 @@ def obtain_quantiles(
 def compute_MAE_N(
     thetas,
     n_it = 100,
-    N=np.array([1, 10, 100, 1000]),
+    N=np.array([10, 100, 1000, 5000]),
     B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
     alpha=0.05,
     n=1000,
     seed=45,
     min_samples_leaf=300,
     naive_n=500,
-    sigma=0.25,
 ):
   folder_path = (
             "/experiments/results_data"
@@ -186,7 +184,6 @@ def compute_MAE_N(
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
             sample_seed=sample_seeds[it],
-            sigma=sigma,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0

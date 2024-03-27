@@ -5,3 +5,4 @@ data/raw/
 data/processed/
 data_scripts/__pycache__/
 experiments/figures/
+.Rproj.user

@@ -24,6 +24,7 @@ g = sns.FacetGrid(
     hue="methods",
     palette="Set1",
     margin_titles=True,
+    sharey = False
 )
 g.map(plt.errorbar, "B", "MAE", "se", fmt="-o")
 g.add_legend()
