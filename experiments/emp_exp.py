@@ -21,18 +21,17 @@ from os import path
 
 original_path = os.getcwd()
 
-def sim_lambda(theta, B = 1000, N = 100):
+def sim_lambda(theta, rng, B = 1000, N = 100):
     lambdas = np.zeros(B)
     theoretical = np.e**(-theta)
     for k in range(0, B):
-        exp = np.random.exponential(1/theta, N)
+        exp = rng.exponential(1/theta, N)
         empirical = len([i for i in exp if i > 1])/len(exp)
         lambdas[k] = np.abs(theoretical - empirical)
     return lambdas
 
-def train_naive(alpha, B = 1000, N = 100, naive_n = 500, lower = 0.0001, upper = 6.9999, seed = 45):
+def train_naive(alpha, rng, B = 1000, N = 100, naive_n = 500, lower = 0.0001, upper = 6.9999):
     # simulating by a fixed theta_grid with size compatible with the amount of samples we want to simulate
-    np.random.seed(seed)
     n_grid = int(B / naive_n)
     if n_grid > 1:
         step = (upper - lower)/n_grid
@@ -45,7 +44,7 @@ def train_naive(alpha, B = 1000, N = 100, naive_n = 500, lower = 0.0001, upper =
     
     quantiles = {}
     for theta in thetas_fixed:
-        diff = sim_lambda(theta, B = n_grid, N = N)
+        diff = sim_lambda(theta, B = n_grid, N = N, rng = rng)
         quantiles[theta] = np.quantile(diff, q = 1 - alpha)
     return quantiles
 
@@ -57,14 +56,13 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
         quantiles_list.append(quantiles_dict[idx])
     return quantiles_list
   
-def generate_parameters_random(B = 5000, random_seed = 45, N = 1000):
-    np.random.seed(random_seed)
-    random_theta_grid = np.random.uniform(0, 7, B)
+def generate_parameters_random(rng, B = 5000, N = 1000):
+    random_theta_grid = rng.uniform(0, 7, B)
     lambdas = np.zeros(B)
     i = 0
     for theta in random_theta_grid:
         theoretical = np.e**(-theta)
-        exp = np.random.exponential(1/theta, N)
+        exp = rng.exponential(1/theta, N)
         empirical = (len([i for i in exp if i > 1])/len(exp))
         lambdas[i] = np.abs(theoretical - empirical)
         i += 1
@@ -73,19 +71,18 @@ def generate_parameters_random(B = 5000, random_seed = 45, N = 1000):
 def obtain_quantiles(
     thetas,
     N,
+    rng,
     B=1000,
     alpha=0.05,
-    naive_seed=45,
     min_samples_leaf=100,
     naive_n=500,
-    sample_seed=25,
 ):
     # fitting and predicting naive
-    naive_quantiles = train_naive(alpha=alpha, B=B, N=N, naive_n=naive_n, seed = naive_seed)
+    naive_quantiles = train_naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng = rng)
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    theta_sim, model_lambdas = generate_parameters_random(B = B, random_seed = sample_seed, N = N)
+    theta_sim, model_lambdas = generate_parameters_random(B = B, rng = rng, N = N)
     model_thetas = theta_sim.reshape(-1, 1)
 
     locart_object = LocartSplit(
@@ -159,18 +156,10 @@ def compute_MAE_N(
   mae_list = []
   se_list = []
   j = 0
-  np.random.seed(seed)
+  rng = np.random.default_rng(seed)
   for N_fixed in tqdm(N, desc="Computing coverage for each N"):
     for B_fixed in B:
       print("Running example simulating {} samples".format(B_fixed))
-      seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-              )
-      sample_seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-        )
       h = 0
       mae_vector = np.zeros((n_it, 4))
       for it in range(0, n_it):
@@ -180,10 +169,9 @@ def compute_MAE_N(
             N=N_fixed,
             B=B_fixed,
             alpha=alpha,
-            naive_seed=seeds[it],
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
-            sample_seed=sample_seeds[it],
+            rng = rng,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
@@ -192,7 +180,8 @@ def compute_MAE_N(
           lambda_stat = sim_lambda(
                 B=n,
                 N=N_fixed,
-                theta=theta
+                theta=theta,
+                rng = rng,
             )
 
           # comparing coverage of methods
@@ -241,6 +230,6 @@ if __name__ == "__main__":
     n_out = 500
     thetas = np.linspace(0.0001, 6.9999, n_out)
     n_it = int(input("Input the desired numper of experiment repetition to be made: "))
-    compute_MAE_N(thetas, n_it = n_it, naive_n = 500)
+    compute_MAE_N(thetas, n_it = n_it, naive_n = 100)
 
   

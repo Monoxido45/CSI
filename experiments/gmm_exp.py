@@ -68,7 +68,13 @@ def l_func(theta, x):
 # likelihood ratio statistic
 def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
     # computing MLE by grid
-    res = minimize_scalar(l_func, args=(X), bounds=(0, 5))
+    res = minimize_scalar(
+    l_func, 
+    args=(X), 
+    bounds=(0, 5), 
+    tol = 0.01, 
+    options={"maxiter": 100})
+    
     mle_theta = res.x
     lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
@@ -207,6 +213,12 @@ def compute_MAE_N(
       h = 0
       mae_vector = np.zeros((n_it, 4))
       for it in range(0, n_it):
+        start = time.time()
+        if (n_it + 1) % 10 == 0:
+          finish = time.time()
+          total_time = finish - start
+          print("Running iteration {} after {} seconds".format(n_it + 1, total_time))
+          start = time.time()
         # computing all quantiles for fixed N
         quantiles_dict = obtain_quantiles(
             thetas,
@@ -271,10 +283,10 @@ def compute_MAE_N(
 
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the GMM example")
-    n_out = 300
+    n_out = 150
     thetas = np.linspace(0.001, 4.999, n_out)
     n_it = int(input("Input the desired number of experiment repetition to be made: "))
-    compute_MAE_N(thetas, n_it = n_it, naive_n = 500)
+    compute_MAE_N(thetas, n_it = n_it, naive_n = 100)
     
     
 

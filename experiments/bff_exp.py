@@ -24,25 +24,24 @@ from os import path
 
 original_path = os.getcwd()
 
-def sim_X(n, theta):
-    X = np.random.normal(theta, 1, n)
+def sim_X(n, theta, rng):
+    X = rng.normal(theta, 1, n)
     return X
 
-def sim_lambda(B, N, theta, sigma=0.25):
+def sim_lambda(B, N, theta, rng, sigma=0.25):
     lambdas = np.zeros(B)
     for i in range(0, B):
-        X = sim_X(N, theta)
+        X = sim_X(N, theta, rng)
         lambdas[i] = compute_pdf_posterior(theta, X, sigma=sigma)
     return lambdas
 
 
-def sample_posterior(n, N, seed=45, sigma=0.25):
-    np.random.seed(seed)
-    thetas = np.random.uniform(-5, 5, size=n)
+def sample_posterior(n, N, rng, sigma=0.25):
+    thetas = rng.uniform(-5, 5, size=n)
     lambdas = np.zeros(n)
     i = 0
     for theta in thetas:
-        X = sim_X(N, theta)
+        X = sim_X(n = N, theta = theta, rng = rng)
         lambdas[i] = compute_pdf_posterior(theta, X, sigma=sigma)
         i += 1
     return thetas, lambdas
@@ -56,13 +55,12 @@ def compute_pdf_posterior(theta, x, sigma=0.25):
 
 
 # naive method
-def naive(alpha, B=1000, N=100, lower=-5, upper=5, seed=250, naive_n=100, sigma=0.25):
-    np.random.seed(seed)
+def naive(alpha, rng, B=1000, N=100, lower=-5, upper=5, naive_n=100, sigma=0.25):
     n_grid = int(B / naive_n)
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
     for theta in thetas:
-        lambdas = sim_lambda(B=naive_n, N=N, theta=theta, sigma=sigma)
+        lambdas = sim_lambda(B=naive_n, N=N, theta=theta, sigma=sigma, rng = rng)
         quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
@@ -79,20 +77,18 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
 def obtain_quantiles(
     thetas,
     N,
+    rng,
     B=1000,
     alpha=0.05,
-    naive_seed=45,
-    min_samples_leaf=100,
     naive_n=500,
     sigma=0.25,
-    sample_seed=25,
+    min_samples_leaf = 300,
 ):
     # fitting and predicting naive
-    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, sigma=sigma, seed=naive_seed)
-    naive_list = predict_naive_quantile(thetas, naive_quantiles)
-
+    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, sigma=sigma, rng = rng)
+    
     # simulating to fit models
-    theta_sim, model_lambdas = sample_posterior(n=B, N=N, seed=sample_seed)
+    theta_sim, model_lambdas = sample_posterior(n=B, N=N, rng = rng)
     model_thetas = theta_sim.reshape(-1, 1)
 
     locart_object = LocartSplit(
@@ -107,7 +103,7 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf, n_estimators = 200, K = 40
     )
 
     # boosting quantiles
@@ -174,14 +170,8 @@ def compute_MAE_N(
   for N_fixed in tqdm(N, desc="Computing coverage for each N"):
     for B_fixed in B:
       print("Running example simulating {} samples".format(B_fixed))
-      seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-              )
-      sample_seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-        )
+      # fixing random generator
+      rng = np.random.default_rng(seed)
       h = 0
       mae_vector = np.zeros((n_it, 4))
       for it in range(0, n_it):
@@ -191,11 +181,10 @@ def compute_MAE_N(
             N=N_fixed,
             B=B_fixed,
             alpha=alpha,
-            naive_seed=seeds[it],
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
-            sample_seed=sample_seeds[it],
             sigma=sigma,
+            rng = rng,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
@@ -206,6 +195,7 @@ def compute_MAE_N(
                 N=N_fixed,
                 theta=theta,
                 sigma=sigma,
+                rng = rng
             )
 
           # comparing coverage of methods
@@ -254,5 +244,5 @@ if __name__ == "__main__":
     n_out = 500
     thetas = np.linspace(-4.999, 4.999, n_out)
     n_it = int(input("Input the desired numper of experiment repetition to be made: "))
-    compute_MAE_N(thetas, n_it = n_it, naive_n = 500)
+    compute_MAE_N(thetas, n_it = n_it, naive_n = 100)
 
