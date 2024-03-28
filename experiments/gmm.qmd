@@ -39,30 +39,31 @@ $$ N = 10, 100, 1000 $$
 
 ```{python}
 # simulator
-def sim_gmm(n, theta):
-    group = np.random.binomial(n=1, p=0.5, size=n)
-    X = ((group == 0) * (np.random.normal(theta, 1, size=n))) + (
-        (group == 1) * (np.random.normal(-theta, 1, size=n))
+def sim_gmm(B, theta, rng):
+    group = rng.binomial(n=1, p=0.5, size=B)
+    X = ((group == 0) * (rng.normal(theta, 1, size=B))) + (
+        (group == 1) * (rng.normal(-theta, 1, size=B))
     )
     return X
 
+def sim_LRT(B, theta, rng):
+    X = sim_gmm(B=N, theta=theta, rng=rng)
+    return compute_lrt_statistic(theta, X)
 
-def sim_lambda(theta, B=1000, N=100):
-    LRT_stat = np.zeros(B)
-    for i in range(0, B):
-        X = sim_gmm(N, theta)
-        LRT_stat[i] = compute_lrt_statistic(theta, X)
+
+def sim_lambda(theta, rng, B=1000, N=100):
+    vLRT = np.vectorize(sim_LRT)
+    LRT_stat = vLRT(np.tile(N, B), theta, rng)
     return LRT_stat
 
 
 # randomly sampling from gmm
-def sample_gmm(n, N, seed=450):
-    np.random.seed(seed)
-    thetas = np.random.uniform(0, 5, size=n)
+def sample_gmm(n, N, rng):
+    thetas = rng.uniform(0, 5, size=n)
     lambdas = np.zeros(n)
     i = 0
     for theta in thetas:
-        X = sim_gmm(N, theta)
+        X = sim_gmm(B=N, theta=theta, rng=rng)
         lambdas[i] = compute_lrt_statistic(theta, X)
         i += 1
     return thetas, lambdas
@@ -81,20 +82,21 @@ def l_func(theta, x):
 # likelihood ratio statistic
 def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
     # computing MLE by grid
-    res = minimize_scalar(l_func, args=(X), bounds=(0, 5))
+    res = minimize_scalar(
+        l_func, args=(X), bounds=(0, 5), tol=0.01, options={"maxiter": 100}
+    )
     mle_theta = res.x
     lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
 
 
 # naive method
-def naive(alpha, B=1000, N=100, lower=0, upper=5, seed=250, naive_n=100):
-    np.random.seed(seed)
+def naive(alpha, rng, B=1000, N=100, lower=0, upper=5, naive_n=100):
     n_grid = int(B / naive_n)
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
     for theta in thetas:
-        LRT_stat = sim_lambda(theta=theta, B=naive_n, N=N)
+        LRT_stat = sim_lambda(theta=theta, B=naive_n, N=N, rng=rng)
         quantiles[theta] = np.quantile(LRT_stat, q=1 - alpha)
     return quantiles
 
@@ -112,7 +114,7 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
 Function to evaluate coverage for a given sample size $N$:
 
 ```{python}
-def evaluate_coverage(quantiles_dict, thetas, alpha=0.05, n=500, N=100):
+def evaluate_coverage(quantiles_dict, thetas, rng, alpha=0.05, n=500, N=100):
     err_data = np.zeros((thetas.shape[0], 4))
     coverage_data = np.zeros((thetas.shape[0], 4))
     j = 0
@@ -120,7 +122,7 @@ def evaluate_coverage(quantiles_dict, thetas, alpha=0.05, n=500, N=100):
         # generating several lambdas
         LRT_stat = np.zeros(n)
         for i in range(0, n):
-            samples = sim_gmm(N, theta)
+            samples = sim_gmm(N, theta, rng)
             LRT_stat[i] = compute_lrt_statistic(theta, samples)
 
         # comparing coverage of methods
@@ -169,12 +171,13 @@ Now, we compare all methods fixing $\alpha = 0.05$, $N = 100$ and $B = 1000$ for
 ```{python}
 # fixing parameters
 N, B, alpha = 100, 1000, 0.05
+rng = np.random.default_rng(1250)
 ```
 Starting by fitting naive:
 ```{python}
 # running naive
 start_time = time.time()
-naive_quantiles = naive(alpha, B = B, N = N, naive_n = 500)
+naive_quantiles = naive(alpha, B = B, N = N, naive_n = 100, rng = rng)
 end_time = time.time()
 
 running_time = end_time - start_time
@@ -184,7 +187,7 @@ print(f"Naive running time: {running_time} seconds.")
 Sampling $\theta$ and $\lambda$ to fit the models:
 
 ```{python}
-thetas, model_lambdas = sample_gmm(n = B, N = N, seed = 45)
+thetas, model_lambdas = sample_gmm(n=B, N=N, rng=rng)
 model_thetas = thetas.reshape(-1, 1)
 ```
 
@@ -192,22 +195,34 @@ Fitting all other methods:
 ```{python}
 # locart quantiles
 start_time = time.time()
-locart_object = LocartSplit(LambdaScore, None, alpha = alpha, is_fitted = True, split_calib = False)
-locart_quantiles = locart_object.calib(model_thetas, model_lambdas, min_samples_leaf = 100)
+locart_object = LocartSplit(
+    LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
+)
+locart_quantiles = locart_object.calib(
+    model_thetas, model_lambdas, min_samples_leaf=100
+)
 end_time = time.time()
 print(f"LOCART running time: {end_time - start_time} seconds.")
 
 # loforest quantiles
 start_time = time.time()
-loforest_object = ConformalLoforest(LambdaScore, None, alpha = alpha, is_fitted = True, split_calib = False)
-loforest_object.calibrate(model_thetas, model_lambdas, min_samples_leaf = 300)
+loforest_object = ConformalLoforest(
+    LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
+)
+loforest_object.calibrate(model_thetas, model_lambdas, min_samples_leaf=300)
 end_time = time.time()
 print(f"LOFOREST running time: {end_time - start_time} seconds.")
 
 # boosting quantiles
 start_time = time.time()
-model = HistGradientBoostingRegressor(loss="quantile", max_iter = 1000,
-quantile = 1 - alpha, random_state = 105, n_iter_no_change = 20, early_stopping = True)
+model = HistGradientBoostingRegressor(
+    loss="quantile",
+    max_iter=1000,
+    quantile=1 - alpha,
+    random_state=105,
+    n_iter_no_change=20,
+    early_stopping=True,
+)
 model.fit(model_thetas, model_lambdas)
 end_time = time.time()
 print(f"Boosting running time: {end_time - start_time} seconds.")
@@ -216,7 +231,7 @@ print(f"Boosting running time: {end_time - start_time} seconds.")
 Predicting for $theta$ in a relatively thin grid:
 
 ```{python}
-n_out = 300
+n_out = 150
 thetas = np.linspace(0.001, 4.999, n_out)
 
 # naive quantiles
@@ -242,7 +257,7 @@ quantile_dict = {
 ```
 Obtaining coverage data for $N = 100$:
 ```{python}
-cover_data = evaluate_coverage(quantile_dict, thetas, n=1000)
+cover_data = evaluate_coverage(quantile_dict, thetas, n=1000, rng = rng)
 ```
 Analising MAE and standard errors:
 ```{python}
@@ -281,26 +296,29 @@ Now, we compute the coverage and MAE's for each method across three sample sizes
 def obtain_quantiles(
     thetas,
     N,
+    rng,
     B=1000,
     alpha=0.05,
-    naive_seed=45,
     min_samples_leaf=100,
+    n_estimators=200,
+    K=40,
     naive_n=500,
-    sample_seed=25,
 ):
     # fitting and predicting naive
-    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, seed=naive_seed)
+    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng=rng)
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    theta_sim, model_lambdas = sample_gmm(n=B, N=N, seed=sample_seed)
+    theta_sim, model_lambdas = sample_gmm(n=B, N=N, rng=rng)
     model_thetas = theta_sim.reshape(-1, 1)
 
     locart_object = LocartSplit(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     locart_quantiles = locart_object.calib(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas,
+        model_lambdas,
+        min_samples_leaf=min_samples_leaf,
     )
 
     # loforest quantiles
@@ -308,7 +326,11 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas,
+        model_lambdas,
+        min_samples_leaf=min_samples_leaf,
+        n_estimators=n_estimators,
+        K=K,
     )
 
     # boosting quantiles
@@ -356,15 +378,15 @@ def evaluate_coverage_N(
     n=1000,
     seed=45,
     min_samples_leaf=100,
+    n_estimators=200,
+    K=40,
     naive_n=100,
 ):
     coverage_data = np.zeros((thetas.shape[0] * N.shape[0], 4))
     N_list = []
     N_list_cover = []
     methods_list = []
-    np.random.seed(seed)
-    seeds = np.random.choice(np.arange(0, 10**4, 1), N.shape[0], replace=False)
-    sample_seeds = np.random.choice(np.arange(0, 10**4, 1), N.shape[0], replace=False)
+    rng = np.random.default_rng(seed)
     k = 0
     j = 0
     for N_fixed in tqdm(N, desc="Computing coverage for each N"):
@@ -374,10 +396,11 @@ def evaluate_coverage_N(
             N=N_fixed,
             B=B,
             alpha=alpha,
-            naive_seed=seeds[k],
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
-            sample_seed=sample_seeds[k],
+            rng=rng,
+            n_estimators=n_estimators,
+            K=K,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
@@ -385,7 +408,7 @@ def evaluate_coverage_N(
             # generating several lambdas
             LRT_stat = np.zeros(n)
             for i in range(0, n):
-                samples = sim_gmm(N_fixed, theta)
+                samples = sim_gmm(N_fixed, theta, rng=rng)
                 LRT_stat[i] = compute_lrt_statistic(theta, samples)
 
             # comparing coverage of methods
@@ -450,16 +473,15 @@ def evaluate_coverage_N(
 Computing coverage:
 ```{python}
 #| output: false
-n_out = 300
+n_out = 150
 thetas = np.linspace(0.001, 4.999, n_out)
 
 coverage_data_N_1000 = evaluate_coverage_N(
     thetas, 
     B = 1000, 
-    naive_n = 250, 
+    naive_n = 100, 
     n = 1000,
     seed = 1250,
-    naive_n = 100,
     )
 ```
 Plotting MAE and standard error for each method and several $N$:
@@ -536,11 +558,10 @@ Increasing $B$ to 5000 samples and testing:
 coverage_data_N_5000 = evaluate_coverage_N(
     thetas,
     B=5000,
-    naive_n=500,
+    naive_n=100,
     min_samples_leaf=250,
     n=1000,
     seed=45,
-    naive_n = 250,
 )
 ```
 Plotting all results again:
@@ -617,7 +638,7 @@ As the naive method performed very well in all cases, lets check if the distribu
 ```{python}
 # | echo: false
 # simulating and comparing four samples
-np.random.seed(145)
+rng = np.random.default_rng(145)
 lambdas_1, lambdas_2, lambdas_3, lambdas_4 = (
     np.zeros(1000),
     np.zeros(1000),
@@ -626,17 +647,19 @@ lambdas_1, lambdas_2, lambdas_3, lambdas_4 = (
 )
 
 for i in range(0, 1000):
-    X = sim_gmm(1000, 0.1)
+    X = sim_gmm(B=1000, theta=0.1, rng=rng)
     lambdas_1[i] = compute_lrt_statistic(0.1, X)
 
-    X = sim_gmm(1000, 1.5)
+    X = sim_gmm(B=1000, theta=1.5, rng=rng)
     lambdas_2[i] = compute_lrt_statistic(1.5, X)
 
-    X = sim_gmm(1000, 3)
+    X = sim_gmm(B=1000, theta=3, rng=rng)
     lambdas_3[i] = compute_lrt_statistic(3, X)
 
-    X = sim_gmm(1000, 4.5)
+    X = sim_gmm(B=1000, theta=4.5, rng=rng)
     lambdas_4[i] = compute_lrt_statistic(4.5, X)
+
+sns.set(style="white", font_scale=1)
 # plotting histograms
 fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
@@ -672,6 +695,8 @@ def compute_MAE_N(
     n=1000,
     seed=45,
     min_samples_leaf=100,
+    n_estimators=100,
+    K=50,
     naive_n=100,
 ):
     coverage_data = np.zeros((thetas.shape[0] * N.shape[0], 4))
@@ -680,18 +705,8 @@ def compute_MAE_N(
     methods_list = []
     B_list = []
     j = 0
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     for N_fixed in tqdm(N, desc="Computing coverage for each N"):
-        seeds = np.random.choice(
-            np.arange(0, 10**4, 1),
-            B.shape[0],
-            replace=False,
-        )
-        sample_seeds = np.random.choice(
-            np.arange(0, 10**4, 1),
-            B.shape[0],
-            replace=False,
-        )
         k = 0
         for B_fixed in B:
             # computing all quantiles for fixed N
@@ -700,10 +715,11 @@ def compute_MAE_N(
                 N=N_fixed,
                 B=B_fixed,
                 alpha=alpha,
-                naive_seed=seeds[k],
                 min_samples_leaf=min_samples_leaf,
                 naive_n=naive_n,
-                sample_seed=sample_seeds[k],
+                n_estimators=n_estimators,
+                K=K,
+                rng=rng,
             )
             err_data = np.zeros((thetas.shape[0], 4))
             l = 0
@@ -713,6 +729,7 @@ def compute_MAE_N(
                     B=n,
                     N=N_fixed,
                     theta=theta,
+                    rng=rng,
                 )
 
                 # comparing coverage of methods
@@ -763,7 +780,7 @@ def compute_MAE_N(
 
 ```{python}
 # | output: false
-n_out = 300
+n_out = 150
 thetas = np.linspace(0.001, 4.999, n_out)
 
 mae_stats = compute_MAE_N(
@@ -771,6 +788,8 @@ mae_stats = compute_MAE_N(
     N=np.array([1, 50, 100, 1000]),
     naive_n=500,
     min_samples_leaf=300,
+    n_estimators = 200,
+    K = 40,
     seed=1250,
 )
 ```
@@ -789,6 +808,7 @@ g = sns.FacetGrid(
     hue="methods",
     palette="Set1",
     margin_titles=True,
+    sharey=False,
 )
 g.map(plt.errorbar, "B", "MAE", "se", marker="o", fmt="-o")
 g.add_legend()

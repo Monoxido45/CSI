@@ -1,11 +1,10 @@
 ---
-title: "BFF toy example"
+title: "2 parameter BFF toy example"
 execute:
   warning: false
   keep-ipynb: true
 format: pdf
 ---
-
 ```{python}
 # importing packages
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -31,63 +30,114 @@ from scipy import stats
 from scipy.optimize import minimize_scalar
 
 import time
+import itertools
 ```
 
 \section{Comparing our methods for a BFF example with normal distribution}
-Taking $\theta \in \Theta = [-5,5]$ we consider a one-dimensional normal prior over $\theta$ given by:
+Taking $(\mu, \sigma^2) \in \Theta = [-5,5] \times (0, 1]$ we consider a normal-inverse gamma prior over $(\mu, \sigma^2)$ given by:
 \begin{align*}
-\theta \sim N(0, 0.25) ,
+\mu|\sigma^2 \sim N(0, 0.25 \sigma^2) , \\
+\sigma^2 \sim IG(2 ,1) ,
 \end{align*}
-with the likelihood of X given by:
+with the likelihood of $X$ given by:
 \begin{align*}
-X \sim N(\theta, 1).
+X|\mu, \sigma^2 \sim N(\mu, \sigma^2).
 \end{align*}
 In this case, we obtain the $1 - \alpha$ credibility region of $\theta$ by obtaining $C_{\theta}$ such that:
 \begin{align*}
-\mathbb{P}(\{\theta: f(\theta|x) \geq C_{\theta}\}) = 1 - \alpha .
+\mathbb{P}(\{(\mu, \sigma^2): f(\mu, \sigma^2|x) \geq C_{\left( \mu, \sigma^2 \right)}\}) = 1 - \alpha .
 \end{align*}
 
 Now we define the main functions to simulate all samples and compute naive quantiles:
 ```{python}
-def sim_X(n, theta, rng):
-    X = rng.normal(theta, 1, n)
+def sim_X(B, mu, sigma_2, rng):
+    X = rng.normal(mu, np.sqrt(sigma_2), B)
     return X
 
-
-def sim_lambda(B, N, theta, rng, sigma=0.25):
+def sim_lambda(B, N, mu, rng, sigma_2, l=4, a=2, beta=1):
     lambdas = np.zeros(B)
     for i in range(0, B):
-        X = sim_X(N, theta, rng=rng)
-        lambdas[i] = compute_pdf_posterior(theta, X, sigma=sigma)
+        X = sim_X(B=N, mu=mu, sigma_2=sigma_2, rng=rng)
+        lambdas[i] = compute_pdf_posterior(
+            mu,
+            sigma_2,
+            X,
+            l=l,
+            a=a,
+            beta=beta,
+        )
     return lambdas
 
 
-def sample_posterior(n, N, rng, sigma=0.25):
-    thetas = rng.uniform(-5, 5, size=n)
-    lambdas = np.zeros(n)
+def sample_posterior(B, N, rng, l=4, a=2, beta=1):
+    thetas = np.c_[rng.uniform(-5, 5, B), rng.uniform(0, 1, B)]
+    lambdas = np.zeros(B)
     i = 0
-    for theta in thetas:
-        X = sim_X(N, theta, rng=rng)
-        lambdas[i] = compute_pdf_posterior(theta, X, sigma=sigma)
+    for mu, sigma_2 in thetas:
+        X = sim_X(B = N, mu = mu, sigma_2 = sigma_2, rng = rng)
+        lambdas[i] = compute_pdf_posterior(
+            mu,
+            sigma_2,
+            X,
+            l=l,
+            a=a,
+            beta=beta,
+        )
         i += 1
     return thetas, lambdas
 
 
-def compute_pdf_posterior(theta, x, sigma=0.25):
+def compute_pdf_posterior(mu, sigma_2, x, l=4, a=2, beta=1):
     n = x.shape[0]
-    mu_value = (1 / ((1 / sigma) + n)) * (np.sum(x))
-    sigma_value = ((1 / sigma) + n) ** (-1)
-    return -stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
+    sum_squares = n * np.var(x)
+    x_bar = np.mean(x)
+
+    # posterior parameters
+    mu_value = (1 / (l + n)) * (np.sum(x))
+    l_value = l + n
+    alpha_value = a + (n / 2)
+    beta_value = (
+        beta + ((1 / 2) * (sum_squares)) + ((n * l) / (l + n) * ((x_bar**2) / 2))
+    )
+
+    # pdf for mu
+    f_mu = stats.norm.pdf(mu, loc=mu_value, scale=np.sqrt(sigma_2 / l_value))
+
+    f_sigma_2 = stats.invgamma.pdf(sigma_2, a=alpha_value, scale=beta_value)
+
+    return -(f_mu * f_sigma_2)
 
 
 # naive method
-def naive(alpha, rng, B=1000, N=100, lower=-5, upper=5, naive_n=100, sigma=0.25):
+def naive(
+    alpha,
+    rng,
+    B=1000,
+    N=100,
+    lower=-5,
+    upper=5,
+    seed=250,
+    naive_n=100,
+    l=4,
+    a=2,
+    beta=1,
+):
     n_grid = int(B / naive_n)
-    thetas = np.linspace(lower, upper, n_grid)
+    mu = np.linspace(-5, 5, n_grid)
+    sigma_2 = np.linspace(0.0001, 1, n_grid)
     quantiles = {}
-    for theta in thetas:
-        lambdas = sim_lambda(B=naive_n, N=N, theta=theta, sigma=sigma, rng=rng)
-        quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
+    for mu, sigma_2 in itertools.product(mu, sigma_2):
+        lambdas = sim_lambda(
+            B=int(np.sqrt(naive_n)),
+            N=N,
+            mu=mu,
+            sigma_2=sigma_2,
+            l=l,
+            a=a,
+            beta=beta,
+            rng = rng
+        )
+        quantiles[(mu, sigma_2)] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
 
@@ -95,71 +145,49 @@ def naive(alpha, rng, B=1000, N=100, lower=-5, upper=5, naive_n=100, sigma=0.25)
 def predict_naive_quantile(theta_grid, quantiles_dict):
     thetas_values = np.array(list(quantiles_dict.keys()))
     quantiles_list = []
-    for theta in theta_grid:
-        idx = thetas_values[int(np.argmin(np.abs(theta - thetas_values)))]
-        quantiles_list.append(quantiles_dict[idx])
+    for x in theta_grid:
+        distances = np.linalg.norm(thetas_values - x, axis=1)
+        idx = thetas_values[np.argmin(distances)]
+        quantiles_list.append(quantiles_dict[tuple(idx)])
     return quantiles_list
 ```
-Lets also check if the statistics are not invariant:
+Lets now compare our methods to all the others for several N:
 ```{python}
-#| echo: false
-rng = np.random.default_rng(125)
-theta_vec = np.array([-4.5, -3, -1.5, 0, 1.5, 3, 4.5])
-simulations = [sim_lambda(B = 5000, N = 100, theta = theta, rng = rng) for theta in theta_vec]
-
-colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Define a list of colors
-num_columns = 4  # 
-
-# Calculate the number of rows needed for the subplots
-num_rows = len(simulations) // num_columns
-num_rows += len(simulations) % num_columns
-
-# Reshape the subplot grid to accommodate all simulations
-fig, axs = plt.subplots(num_rows, num_columns, figsize=(16, 10))
-
-# Flatten the axs array for easy iteration
-axs = axs.flatten()
-
-for i, simulation in enumerate(simulations):
-    lambdas = simulation
-    axs[i].hist(lambdas, bins=30, density=True, alpha=0.6, color=colors[i % len(colors)])  # Use different color for each histogram
-    axs[i].set_title(r'$\theta$ = {}'.format(theta_vec[i]))
-    axs[i].set_xlabel(r'$\lambda$')
-    axs[i].set_ylabel('Frequency')
-
-# Remove unused subplots
-if len(simulations) < len(axs):
-    for i in range(len(simulations), len(axs)):
-        fig.delaxes(axs[i])
-
-plt.tight_layout()
-plt.show()
-```
-As we saw, the statistics appear to have different distributions as we change $\theta$ values. Lets now compare our methods to all the others for several N:
-
-
-```{python}
-# function to obtain all comparing methods quantile
 def obtain_quantiles(
     thetas,
     N,
     rng,
-    B=1000,
+    B=5000,
     alpha=0.05,
     min_samples_leaf=100,
     naive_n=500,
-    sigma=0.25,
+    l=4,
+    a=2,
+    beta=1,
+    n_estimators=200,
+    K=40,
 ):
-    # fixing seed
     # fitting and predicting naive
     naive_quantiles = naive(
-        alpha=alpha, B=B, N=N, naive_n=naive_n, sigma=sigma, rng = rng
+        alpha=alpha,
+        B=B,
+        N=N,
+        naive_n=naive_n,
+        l=l,
+        a=a,
+        beta=beta,
+        rng=rng,
     )
-    naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    theta_sim, model_lambdas = sample_posterior(n=B, N=N, rng = rng)
-    model_thetas = theta_sim.reshape(-1, 1)
+    model_thetas, model_lambdas = sample_posterior(
+        B=B,
+        N=N,
+        l=l,
+        a=a,
+        beta=beta,
+        rng=rng,
+    )
 
     locart_object = LocartSplit(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
@@ -173,7 +201,11 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas,
+        model_lambdas,
+        min_samples_leaf=min_samples_leaf,
+        n_estimators=n_estimators,
+        K=K,
     )
 
     # boosting quantiles
@@ -192,14 +224,14 @@ def obtain_quantiles(
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # locart quantiles
-    idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
+    idxs = locart_object.cart.apply(thetas)
     list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
 
     # loforest
-    loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
+    loforest_cutoffs = loforest_object.compute_cutoffs(thetas)
 
     # boosting
-    boosting_quantiles = model.predict(thetas.reshape(-1, 1))
+    boosting_quantiles = model.predict(thetas)
 
     # dictionary of quantiles
     quantile_dict = {
@@ -221,8 +253,12 @@ def evaluate_coverage_N(
     n=1000,
     seed=45,
     min_samples_leaf=100,
+    n_estimators=200,
+    K=40,
     naive_n=100,
-    sigma=0.25,
+    l=4,
+    a=5,
+    beta=1,
 ):
     coverage_data = np.zeros((thetas.shape[0] * N.shape[0], 4))
     N_list = []
@@ -240,14 +276,27 @@ def evaluate_coverage_N(
             alpha=alpha,
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
-            sigma=sigma,
-            rng = rng,
+            l=l,
+            a=a,
+            beta=beta,
+            rng=rng,
+            n_estimators=n_estimators,
+            K=K,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
         for theta in tqdm(thetas, desc="Computing coverage for each method"):
             # generating several lambdas
-            lambda_stat = sim_lambda(B=n, N=N_fixed, theta=theta, sigma=sigma, rng = rng)
+            lambda_stat = sim_lambda(
+                B=n,
+                N=N_fixed,
+                mu=theta[0],
+                sigma_2=theta[1],
+                l=l,
+                a=a,
+                beta=beta,
+                rng=rng,
+            )
 
             # comparing coverage of methods
             locart_cover = np.mean(lambda_stat <= quantiles_dict["locart"][l])
@@ -264,10 +313,6 @@ def evaluate_coverage_N(
             # saving in numpy array
             err_data[l, :] = np.array(
                 [err_locart, err_loforest, err_boosting, err_naive]
-            )
-
-            coverage_data[j, :] = np.array(
-                [locart_cover, loforest_cover, boosting_cover, naive_cover]
             )
             N_list_cover.append(N_fixed)
 
@@ -298,7 +343,8 @@ def evaluate_coverage_N(
 
     coverage_data = pd.DataFrame(
         {
-            "thetas": np.tile(thetas, N.shape[0]),
+            "mu": np.tile(thetas[:, 0], N.shape[0]),
+            "sigma": np.tile(thetas[:, 1], N.shape[0]),
             "N": N_list_cover,
             "LOCART": coverage_data[:, 0],
             "LOFOREST": coverage_data[:, 1],
@@ -308,28 +354,32 @@ def evaluate_coverage_N(
     )
     return [stats_data, coverage_data]
 ```
-
-Testing for $B = 5000$:
+Testing for $B = 5000$ and several $N$, fixing a fine 2d grid for evaluation:
 ```{python}
-# | output: false
-n_out = 750
-thetas = np.linspace(-4.999, 4.999, n_out)
+n_out = 50
+mu_s = np.linspace(-5, 5, n_out)
+sigmas = np.linspace(0.0001, 1, n_out)
+thetas_grid = np.c_[list(itertools.product(mu_s, sigmas))]
+# printing grid size
+thetas_grid.shape[0]
+```
 
+```{python}
 coverage_data_N_5000 = evaluate_coverage_N(
-    thetas,
+    thetas_grid,
     N=np.array([10, 100, 1000, 2000]),
     B=5000,
     naive_n=500,
     min_samples_leaf=300,
-    n=2000,
+    n=1000,
     seed=1250,
 )
 ```
 
-Plotting all results:
 ```{python}
 # | echo: false
-fig, ax = plt.subplots(ncols=4, figsize=(16, 8))
+sns.set(style="white", font_scale=1)
+fig, ax = plt.subplots(ncols=3, figsize=(16, 8))
 # data for first subplot
 data_10 = coverage_data_N_5000[0].query("N == 10")
 keys = data_10.iloc[:, 0].values
@@ -360,64 +410,28 @@ ax[2].set_xlabel("Method")
 ax[2].set_ylabel("Error")
 ax[2].set_title("Estimated MAE for N = 1000")
 
-data_2000 = coverage_data_N_5000[0].query("N == 2000")
-keys = data_2000.iloc[:, 0].values
-mae = data_2000.iloc[:, 2].values
-std_err = data_2000.iloc[:, 3].values
-ax[3].errorbar(keys, mae, yerr=std_err, fmt="o")
-ax[3].set_xlabel("Method")
-ax[3].set_ylabel("Error")
-ax[3].set_title("Estimated MAE for N = 2000")
-
 for a in ax:
     a.set_xticklabels(a.get_xticklabels(), rotation=90)
 plt.tight_layout()
 plt.show()
 ```
 
+Computing MAE for several B's and N's
 ```{python}
-# | echo: false
-# plotting coverage
-coverage_data_melted = pd.melt(
-    coverage_data_N_5000[1],
-    id_vars=["thetas", "N"],
-    var_name="method",
-    value_name="coverage",
-)
-# Plot the coverage as function of the thetas generated
-sns.set(style="white", font_scale=3.5)
-g = sns.FacetGrid(
-    coverage_data_melted,
-    row="N",
-    col="method",
-    hue="method",
-    height=8,
-    aspect=1.60,
-    palette="Set1",
-    margin_titles=True,
-)
-g.map(sns.lineplot, "thetas", "coverage")
-g.add_legend(bbox_to_anchor=(1.0, 0.5), loc=2, borderaxespad=0.0)
-g.set_titles("{col_name}")
-g.set_xlabels(r"$\theta$")
-g.set_ylabels("Coverage")
-plt.tight_layout()
-plt.show()
-```
-
-Now, lets evaluate the performance of each method as a function of the sample size $B$ for several $N$, in this case $N \in \{1, 50, 100, 1000\}$ and $B \in \{500, 1000, 5000, 10000\}$:
-```{python}
-# function to compute MAE stats for several B's and N's
 def compute_MAE_N(
     thetas,
-    N=np.array([1, 10, 100, 1000]),
+    N=np.array([50, 100, 1000, 2000]),
     B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
     alpha=0.05,
     n=1000,
     seed=45,
     min_samples_leaf=100,
-    naive_n=100,
-    sigma=0.25,
+    n_estimators = 100,
+    K = 40,
+    naive_n = 100,
+    l=4,
+    a=5,
+    beta=1,
 ):
     N_list = []
     methods_list = []
@@ -435,8 +449,12 @@ def compute_MAE_N(
                 alpha=alpha,
                 min_samples_leaf=min_samples_leaf,
                 naive_n=naive_n,
-                sigma=sigma,
-                rng=rng,
+                rng = rng,
+                n_estimators = n_estimators,
+                K = K,
+                l = l,
+                a = a,
+                beta = beta,
             )
             err_data = np.zeros((thetas.shape[0], 4))
             l = 0
@@ -445,9 +463,12 @@ def compute_MAE_N(
                 lambda_stat = sim_lambda(
                     B=n,
                     N=N_fixed,
-                    theta=theta,
-                    sigma=sigma,
-                    rng=rng,
+                    mu=theta[0],
+                    sigma_2=theta[1],
+                    rng = rng,
+                    l = l,
+                    a = a,
+                    beta = beta,
                 )
 
                 # comparing coverage of methods
@@ -497,19 +518,20 @@ def compute_MAE_N(
 ```
 
 ```{python}
-# | output: false
-n_out = 500
-thetas = np.linspace(-4.999, 4.999, n_out)
 mae_stats = compute_MAE_N(
-    thetas,
+    thetas_grid,
     N=np.array([10, 100, 1000, 2000]),
+    B=np.array([1000, 5000, 10000, 15000, 20000, 30000]),
     naive_n=500,
     min_samples_leaf=300,
-    seed=45,
+    n_estimators = 200,
+    K = 50,
+    seed=45, 
 )
 ```
 
 Plotting all results:
+
 ```{python}
 # | echo: false
 # Create a line plot with error bars
