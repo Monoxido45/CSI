@@ -122,13 +122,13 @@ def naive(
     a=2,
     beta=1,
 ):
-    n_grid = int(B / naive_n)
+    n_grid = round(np.sqrt(B / naive_n))
     mu = np.linspace(-5, 5, n_grid)
     sigma_2 = np.linspace(0.0001, 1, n_grid)
     quantiles = {}
     for mu, sigma_2 in itertools.product(mu, sigma_2):
         lambdas = sim_lambda(
-            B=int(np.sqrt(naive_n)),
+            B= naive_n,
             N=N,
             mu=mu,
             sigma_2=sigma_2,
@@ -367,7 +367,7 @@ thetas_grid.shape[0]
 ```{python}
 coverage_data_N_5000 = evaluate_coverage_N(
     thetas_grid,
-    N=np.array([10, 100, 1000, 2000]),
+    N=np.array([10, 100, 1000]),
     B=5000,
     naive_n=500,
     min_samples_leaf=300,
@@ -520,13 +520,13 @@ def compute_MAE_N(
 ```{python}
 mae_stats = compute_MAE_N(
     thetas_grid,
-    N=np.array([10, 100, 1000, 2000]),
-    B=np.array([1000, 5000, 10000, 15000, 20000, 30000]),
+    N=np.array([10, 100, 1000]),
+    B=np.array([1000, 5000, 10000, 15000]),
     naive_n=500,
     min_samples_leaf=300,
-    n_estimators = 200,
-    K = 50,
-    seed=45, 
+    n_estimators=200,
+    K=50,
+    seed=45,
 )
 ```
 
