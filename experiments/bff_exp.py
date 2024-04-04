@@ -103,7 +103,7 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf, n_estimators = 200, K = 40
+        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf, K = 50, n_estimators = 200,
     )
 
     # boosting quantiles

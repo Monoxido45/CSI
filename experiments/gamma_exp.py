@@ -19,56 +19,96 @@ from tqdm import tqdm
 import os
 from os import path
 
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from scipy import stats
+
+# loforest and locart functions
+from CP2LFI.loforest import ConformalLoforest
+from CP2LFI.scores import LambdaScore
+
+from clover import Scores
+from clover import LocartSplit
+
+from copy import deepcopy
+
+from tqdm import tqdm
+
+import os
+from os import path
+import itertools
+
 original_path = os.getcwd()
 
-def sim_lambda(theta, rng, B = 1000, N = 100):
-    lambdas = np.zeros(B)
-    theoretical = np.e**(-theta)
-    for k in range(0, B):
-        exp = rng.exponential(1/theta, N)
-        empirical = len([i for i in exp if i > 1])/len(exp)
-        lambdas[k] = np.abs(theoretical - empirical)
-    return lambdas
+# simulator
+def sim_gamma(gamma_shape, gamma_scale, n, rng, threshold=None):
+    
+    random_x = rng.gamma(gamma_shape, gamma_scale, n)
+    
+    if not threshold:
+        threshold = rng.choice(random_x)
 
-def train_naive(alpha, rng, B = 1000, N = 100, naive_n = 500, lower = 0.0001, upper = 6.9999):
-    # simulating by a fixed theta_grid with size compatible with the amount of samples 
-    # we want to simulate
-    n_grid = int(B / naive_n)
-    if n_grid > 1:
-        step = (upper - lower)/n_grid
-        thetas_fixed = np.arange(lower, upper, step)
-    else:
-        step = (upper - lower)/2
-        thetas_fixed = np.array([np.arange(lower, upper, step)[1]])
-      
-    thetas_fixed = np.linspace(lower, upper, n_grid)
+    emp_prob = np.mean(random_x > threshold)
+    t_prob = 1 - stats.gamma.cdf(threshold, a=gamma_shape, scale=gamma_scale)
+
+    lambda_stat = np.abs(t_prob - emp_prob)
+
+    return lambda_stat
+
+# randomly sampling from gamma
+def sample_gamma(n, N, rng, threshold = None):
+    thetas = np.c_[rng.uniform(2, 8, n), rng.uniform(4, 10, n)]
+    lambdas = np.zeros(n)
+    i = 0
+    for shape, scale in thetas:
+        lambdas[i] = sim_gamma(gamma_shape=shape, 
+                               gamma_scale=scale, 
+                               n=N, 
+                               rng =rng, 
+                               threshold = threshold,
+                               )
+        i += 1
+    return thetas, lambdas
+
+
+# naive method
+def naive(alpha, rng, B=1000, N=100, seed=250, naive_n=100, threshold = None):
+    np.random.seed(seed)
+    n_grid = round(np.sqrt(B / naive_n))
+    a_s = np.linspace(4.0001, 9.9999, n_grid)
+    b_s = np.linspace(2.0001, 7.9999, n_grid)
     
     quantiles = {}
-    for theta in thetas_fixed:
-        diff = sim_lambda(theta, B = n_grid, N = N, rng = rng)
-        quantiles[theta] = np.quantile(diff, q = 1 - alpha)
+    for shape, scale in itertools.product(b_s, a_s):
+        lambda_stat = np.zeros(naive_n)
+        for i in range(naive_n):
+            lambda_stat[i] = sim_gamma(
+                gamma_shape=shape, 
+                gamma_scale=scale, 
+                n = N, 
+                rng = rng,
+                threshold = threshold,
+                )
+
+        quantiles[(shape, scale)] = np.quantile(lambda_stat, q=1 - alpha)
     return quantiles
 
+
+# naive predict function
 def predict_naive_quantile(theta_grid, quantiles_dict):
     thetas_values = np.array(list(quantiles_dict.keys()))
     quantiles_list = []
-    for theta in theta_grid:
-        idx = thetas_values[int(np.argmin(np.abs(theta - thetas_values)))]
-        quantiles_list.append(quantiles_dict[idx])
+    for x in theta_grid:
+        distances = np.linalg.norm(thetas_values - x, axis=1)
+        idx = thetas_values[np.argmin(distances)]
+        quantiles_list.append(quantiles_dict[tuple(idx)])
     return quantiles_list
   
-def generate_parameters_random(rng, B = 5000, N = 1000):
-    random_theta_grid = rng.uniform(0, 7, B)
-    lambdas = np.zeros(B)
-    i = 0
-    for theta in random_theta_grid:
-        theoretical = np.e**(-theta)
-        exp = rng.exponential(1/theta, N)
-        empirical = (len([i for i in exp if i > 1])/len(exp))
-        lambdas[i] = np.abs(theoretical - empirical)
-        i += 1
-    return random_theta_grid, lambdas
-
+# function to obtain quantiles
 def obtain_quantiles(
     thetas,
     N,
@@ -76,21 +116,25 @@ def obtain_quantiles(
     B=1000,
     alpha=0.05,
     min_samples_leaf=100,
+    n_estimators = 200,
+    K = 50,
     naive_n=500,
+    threshold = None
 ):
     # fitting and predicting naive
-    naive_quantiles = train_naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng = rng)
+    naive_quantiles = naive(alpha, rng = rng, B=B, N=N, naive_n= naive_n, threshold = threshold)
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    theta_sim, model_lambdas = generate_parameters_random(B = B, rng = rng, N = N)
-    model_thetas = theta_sim.reshape(-1, 1)
+    thetas_sim, model_lambdas = sample_gamma(n=B, N=N, rng = rng, threshold = threshold)
+
+    model_thetas = thetas_sim.reshape(-1, 2)
 
     locart_object = LocartSplit(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     locart_quantiles = locart_object.calib(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas, model_lambdas, min_samples_leaf=100
     )
 
     # loforest quantiles
@@ -98,7 +142,11 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf, K = 50, n_estimators = 200,
+        model_thetas, 
+        model_lambdas, 
+        min_samples_leaf=min_samples_leaf, 
+        n_estimators= n_estimators,
+        K = K,
     )
 
     # boosting quantiles
@@ -113,15 +161,18 @@ def obtain_quantiles(
     )
     model.fit(model_thetas, model_lambdas)
 
+    # naive quantiles
+    naive_list = predict_naive_quantile(thetas, naive_quantiles)
+
     # locart quantiles
-    idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
+    idxs = locart_object.cart.apply(thetas.reshape(-1, 2))
     list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
 
     # loforest
-    loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
+    loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 2))
 
     # boosting
-    boosting_quantiles = model.predict(thetas.reshape(-1, 1))
+    boosting_quantiles = model.predict(thetas.reshape(-1, 2))
 
     # dictionary of quantiles
     quantile_dict = {
@@ -133,7 +184,6 @@ def obtain_quantiles(
 
     return quantile_dict
 
-
 def compute_MAE_N(
     thetas,
     n_it = 100,
@@ -144,6 +194,9 @@ def compute_MAE_N(
     seed=45,
     min_samples_leaf=300,
     naive_n=500,
+    threshold = 30,
+    n_estimators = 200,
+    K = 50,
 ):
   folder_path = (
             "/experiments/results_data"
@@ -161,7 +214,6 @@ def compute_MAE_N(
   for N_fixed in tqdm(N, desc="Computing coverage for each N"):
     for B_fixed in B:
       print("Running example simulating {} samples".format(B_fixed))
-      h = 0
       mae_vector = np.zeros((n_it, 4))
       for it in range(0, n_it):
         # computing all quantiles for fixed N
@@ -173,18 +225,23 @@ def compute_MAE_N(
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
             rng = rng,
+            threshold = threshold,
+            n_estimators = n_estimators,
+            K = K,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
         for theta in thetas:
-          # generating several lambdas
-          lambda_stat = sim_lambda(
-                B=n,
-                N=N_fixed,
-                theta=theta,
-                rng = rng,
-            )
-
+          lambda_stat = np.zeros(n)
+          for i in range(0, n):
+            lambda_stat[i] = sim_gamma(
+                      gamma_shape=theta[0], 
+                      gamma_scale=theta[1], 
+                      n=N_fixed, 
+                      rng = rng,
+                      threshold= threshold,
+                      )
+                      
           # comparing coverage of methods
           locart_cover = np.mean(lambda_stat <= quantiles_dict["locart"][l])
           loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
@@ -204,8 +261,6 @@ def compute_MAE_N(
 
           l += 1
         mae_vector[it, :] = np.mean(err_data, axis = 0)
-        j += 1
-        h += 1
         
       mae_list.extend(np.mean(mae_vector, axis = 0).tolist())
       se_list.extend((np.std(mae_vector, axis = 0)/np.sqrt(n_it)).tolist())
@@ -224,14 +279,14 @@ def compute_MAE_N(
         }
     )
     # saving data
-    stats_data.to_csv(original_path + folder_path + "/exp_data.csv")
+    stats_data.to_csv(original_path + folder_path + "/gamma_data.csv")
 
 if __name__ == "__main__":
-    print("We will now compute all MAE statistics for the exponential example")
-    n_out = 500
-    thetas = np.linspace(0.0001, 6.9999, n_out)
+    print("We will now compute all MAE statistics for the gamma example")
+    n_out = 50
+    a_s = np.linspace(4.0001, 9.9999, n_out)
+    b_s = np.linspace(2.0001, 7.9999, n_out)
+    thetas_grid = np.c_[list(itertools.product(a_s, b_s))]
     n_it = int(input("Input the desired numper of experiment repetition to be made: "))
-    compute_MAE_N(thetas, B=np.array([1000, 5000, 10000, 15000]), 
+    compute_MAE_N(thetas_grid, B=np.array([1000, 5000, 10000, 15000]), N=np.array([1, 10, 20, 50]),
     n_it = n_it, naive_n = 100)
-
-  

@@ -78,27 +78,6 @@ def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
     mle_theta = res.x
     lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
-
-
-# naive method
-def naive(alpha, rng, B=1000, N=100, lower=0, upper=5, naive_n=100):
-    n_grid = int(B / naive_n)
-    thetas = np.linspace(lower, upper, n_grid)
-    quantiles = {}
-    for theta in thetas:
-        LRT_stat = sim_lambda(theta=theta, B=naive_n, N=N, rng=rng)
-        quantiles[theta] = np.quantile(LRT_stat, q=1 - alpha)
-    return quantiles
-
-
-# naive predict function
-def predict_naive_quantile(theta_grid, quantiles_dict):
-    thetas_values = np.array(list(quantiles_dict.keys()))
-    quantiles_list = []
-    for theta in theta_grid:
-        idx = thetas_values[int(np.argmin(np.abs(theta - thetas_values)))]
-        quantiles_list.append(quantiles_dict[idx])
-    return quantiles_list  
   
 # function to obtain all quantiles for a given B, sample size N and theta grid
 def obtain_quantiles(
@@ -110,24 +89,11 @@ def obtain_quantiles(
     min_samples_leaf=100,
     n_estimators=200,
     K=40,
-    naive_n=500,
 ):
-    # fitting and predicting naive
-    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng=rng)
-    naive_list = predict_naive_quantile(thetas, naive_quantiles)
-
-    # simulating to fit models
+  
+    # simulating to fit loforest
     theta_sim, model_lambdas = sample_gmm(n=B, N=N, rng=rng)
     model_thetas = theta_sim.reshape(-1, 1)
-
-    locart_object = LocartSplit(
-        LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
-    )
-    locart_quantiles = locart_object.calib(
-        model_thetas,
-        model_lambdas,
-        min_samples_leaf=100,
-    )
 
     # loforest quantiles
     loforest_object = ConformalLoforest(
@@ -141,37 +107,12 @@ def obtain_quantiles(
         K=K,
     )
 
-    # boosting quantiles
-    model = HistGradientBoostingRegressor(
-        loss="quantile",
-        max_iter=100,
-        max_depth=3,
-        quantile=1 - alpha,
-        random_state=105,
-        n_iter_no_change=15,
-        early_stopping=True,
-    )
-    model.fit(model_thetas, model_lambdas)
-
-    # naive quantiles
-    naive_list = predict_naive_quantile(thetas, naive_quantiles)
-
-    # locart quantiles
-    idxs = locart_object.cart.apply(thetas.reshape(-1, 1))
-    list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
-
     # loforest
     loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
 
-    # boosting
-    boosting_quantiles = model.predict(thetas.reshape(-1, 1))
-
     # dictionary of quantiles
     quantile_dict = {
-        "naive": naive_list,
-        "locart": list_locart_quantiles,
-        "loforest": loforest_cutoffs,
-        "boosting": boosting_quantiles,
+        "loforest": loforest_cutoffs
     }
 
     return quantile_dict  
@@ -187,7 +128,6 @@ def compute_MAE_N(
     min_samples_leaf=100,
     n_estimators=100,
     K=50,
-    naive_n=100,
 ):
     N_list = []
     mae_list = []
@@ -206,12 +146,11 @@ def compute_MAE_N(
                 B=B_fixed,
                 alpha=alpha,
                 min_samples_leaf=min_samples_leaf,
-                naive_n=naive_n,
                 n_estimators=n_estimators,
                 K=K,
                 rng=rng,
             )
-            err_data = np.zeros((thetas.shape[0], 4))
+            err_data = np.zeros((thetas.shape[0], 1))
             l = 0
             for theta in thetas:
                 # generating several lambdas
@@ -223,28 +162,23 @@ def compute_MAE_N(
                 )
 
                 # comparing coverage of methods
-                locart_cover = np.mean(lambda_stat <= quantiles_dict["locart"][l])
                 loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
-                boosting_cover = np.mean(lambda_stat <= quantiles_dict["boosting"][l])
-                naive_cover = np.mean(lambda_stat <= quantiles_dict["naive"][l])
+                
                 # appending the errors
-                err_locart = np.abs(locart_cover - (1 - alpha))
                 err_loforest = np.abs(loforest_cover - (1 - alpha))
-                err_boosting = np.abs(boosting_cover - (1 - alpha))
-                err_naive = np.abs(naive_cover - (1 - alpha))
 
                 # saving in numpy array
                 err_data[l, :] = np.array(
-                    [err_locart, err_loforest, err_boosting, err_naive]
+                    [err_loforest]
                 )
 
                 l += 1
 
             mae_list.extend(np.mean(err_data, axis = 0).tolist())
             se_list.extend((np.std(err_data, axis = 0)/np.sqrt(thetas.shape[0])).tolist())
-            methods_list.extend(["LOCART", "LOFOREST", "boosting", "naive"])
-            N_list.extend([N_fixed] * 4)
-            B_list.extend([B_fixed] * 4)
+            methods_list.extend(["LOFOREST"])
+            N_list.extend([N_fixed])
+            B_list.extend([B_fixed])
 
     # obtaining MAE and standard error for each method
     stats_data = pd.DataFrame(
@@ -271,14 +205,14 @@ if __name__ == "__main__":
         cov_5000[k] = compute_MAE_N(
             thetas,
             B=np.array([500, 1000, 5000, 10000]),
-            N=np.array([1000]),
-            naive_n=500,
+            N=np.array([1, 10, 20, 50]),
             min_samples_leaf=300,
             n_estimators = 200,
             K = k,
             seed=1250,
         )
-        print(f"Done for K = {k}")    
+        print(f"Done for K = {k}")
+        
     # save the list of dataframes cov_5000
     with open("gmm_experiment/cov_5000.pkl", "wb") as f:
         pickle.dump(cov_5000, f)
