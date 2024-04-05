@@ -136,10 +136,8 @@ def obtain_quantiles(
 def compute_MAE_N(
     thetas,
     n_it=100,
-   # N=np.array([1, 10, 100, 1000]),
-    N=np.array([1, 10]),
-    #B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
-    B=np.array([500, 1000]),
+    N=np.array([1, 10, 100, 1000]),
+    B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
     alpha=0.05,
     n=1000,
     seed=45,
