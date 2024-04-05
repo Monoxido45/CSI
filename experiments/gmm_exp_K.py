@@ -213,6 +213,9 @@ if __name__ == "__main__":
         )
         print(f"Done for K = {k}")
         
+        with open("gmm_experiment/cov_5000.pkl", "wb") as f:
+          pickle.dump(cov_5000, f)
+        
     # save the list of dataframes cov_5000
     with open("gmm_experiment/cov_5000.pkl", "wb") as f:
         pickle.dump(cov_5000, f)
