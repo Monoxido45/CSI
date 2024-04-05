@@ -30,6 +30,7 @@ class ConformalLoforest(BaseEstimator):
         base_model_type=None,
         split_calib=True,
         weighting=False,
+        tune_K=False,
         **kwargs
     ):
         """
@@ -55,6 +56,7 @@ class ConformalLoforest(BaseEstimator):
         self.alpha = alpha
         self.split_calib = split_calib
         self.weighting = weighting
+        self.tune = tune_K
 
     def fit(self, X, y, random_seed_tree=1250, **kwargs):
         """
@@ -219,7 +221,61 @@ class ConformalLoforest(BaseEstimator):
         # computing variance for each dataset row
         return cart_pred.var(1)
 
-    def compute_cutoffs(self, X):
+    def compute_breiman_matrix(self, X_test):
+        test_size = X_test.shape[0]
+
+        # Define a function to compute a single row of the Breiman matrix
+        def compute_breiman_row(i):
+            leaves_obs_sel = self.leaves_obs[i, :]
+            matches = self.res_leaves == leaves_obs_sel
+            return matches.sum(axis=1)
+
+        # Vectorize the function
+        vectorized_compute_breiman_row = np.vectorize(compute_breiman_row)
+
+        # Use the vectorized function to compute the Breiman matrix
+        breiman_matrix = vectorized_compute_breiman_row(np.arange(test_size))
+
+        return breiman_matrix
+
+    def check_k(self, breiman_matrix, K, min_samples):
+        percentage_coverage = np.mean(np.sum(breiman_matrix > K, axis=1) > min_samples)
+        if percentage_coverage >= 0.9:
+            return [True, percentage_coverage]
+        else:
+            return [False, percentage_coverage]
+
+    def tune_k(self, breiman_matrix, K_init=80, min_samples=300, step=5):
+        K_trial = K_init
+        k_list = self.check_k(breiman_matrix, K_init, min_samples)
+        k_bool, percentage_coverage = k_list[0], k_list[1]
+
+        if k_bool:
+            while percentage_coverage > 0.9:
+                new_K = K_trial + step
+                k_list = self.check_k(breiman_matrix, new_K, min_samples)
+                if not k_list[0]:
+                    break
+                else:
+                    K_trial = new_K
+                    percentage_coverage = k_list[1]
+                percentage_coverage = np.mean(
+                    np.sum(breiman_matrix > new_K, axis=1) > min_samples
+                )
+                K_trial = new_K
+        else:
+            while percentage_coverage < 0.9:
+                new_K = K_trial - step
+                k_list = self.check_k(breiman_matrix, new_K, min_samples)
+                K_trial = new_K
+                if k_list[0]:
+                    break
+                else:
+                    percentage_coverage = k_list[1]
+
+        return K_trial
+
+    def compute_cutoffs(self, X, K_init=50):
         # if weighting is enabled
         if self.weighting:
             w = self.compute_difficulty(X)
@@ -227,22 +283,28 @@ class ConformalLoforest(BaseEstimator):
         else:
             X_tree = X
         # obtaining cutoffs for each X on the fly
-        test_size = X_tree.shape[0]
-        cutoffs = np.zeros(test_size)
 
         # obtaining all leaves for all X's
         if self.objective == "mse_based":
-            leaves_obs = self.RF.apply(X_tree)
+            self.leaves_obs = self.RF.apply(X_tree)
         else:
-            leaves_obs = self.bagging_apply(X_tree)
+            self.leaves_obs = self.bagging_apply(X_tree)
+
+        test_size = X_tree.shape[0]
+
+        # cutoffs array
+        cutoffs = np.zeros(test_size)
+
+        # computing breiman matrix
+        breiman_matrix = self.compute_breiman_matrix(X_tree)
+
+        if self.tune:
+            K = self.tune_k(breiman_matrix=breiman_matrix, K_init=K_init)
+        else:
+            K = self.K
 
         for i in range(0, test_size):
-            leaves_obs_sel = leaves_obs[i, :]
-
-            # finding how many of them matches with calibration data
-            matches = self.res_leaves == leaves_obs_sel
-            num_matches = matches.sum(axis=1)
-            obs_idx = np.where(num_matches >= self.K)[0]
+            obs_idx = np.where(breiman_matrix >= K)[0]
 
             # obtaining cutoff based on found residuals
             local_res = self.res_vector[obs_idx]
