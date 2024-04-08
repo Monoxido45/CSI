@@ -223,6 +223,7 @@ class ConformalLoforest(BaseEstimator):
 
     def compute_breiman_matrix(self, X_test):
         test_size = X_test.shape[0]
+        calib_size = self.res_leaves.shape[0]
 
         # Define a function to compute a single row of the Breiman matrix
         def compute_breiman_row(i):
@@ -230,43 +231,51 @@ class ConformalLoforest(BaseEstimator):
             matches = self.res_leaves == leaves_obs_sel
             return matches.sum(axis=1)
 
+        breiman_matrix = np.zeros((test_size, calib_size))
+        for i in range(test_size):
+            leaves_obs_sel = self.leaves_obs[i, :]
+            matches = self.res_leaves == leaves_obs_sel
+            breiman_matrix[i, :] = matches.sum(axis=1)
+
         # Vectorize the function
-        vectorized_compute_breiman_row = np.vectorize(compute_breiman_row)
+        # vectorized_compute_breiman_row = np.vectorize(compute_breiman_row)
 
         # Use the vectorized function to compute the Breiman matrix
-        breiman_matrix = vectorized_compute_breiman_row(np.arange(test_size))
+        # breiman_matrix = vectorized_compute_breiman_row(np.arange(test_size))
 
         return breiman_matrix
 
-    def check_k(self, breiman_matrix, K, min_samples):
-        percentage_coverage = np.mean(np.sum(breiman_matrix > K, axis=1) > min_samples)
-        if percentage_coverage >= 0.9:
+    def check_k(self, breiman_matrix, K, min_samples, pct_cover):
+        percentage_coverage = np.mean(np.sum(breiman_matrix >= K, axis=1) > min_samples)
+        if percentage_coverage >= pct_cover:
             return [True, percentage_coverage]
         else:
             return [False, percentage_coverage]
 
-    def tune_k(self, breiman_matrix, K_init=80, min_samples=300, step=5):
+    def tune_k(
+        self, breiman_matrix, K_init=80, min_samples=100, step=5, pct_cover=0.95
+    ):
         K_trial = K_init
-        k_list = self.check_k(breiman_matrix, K_init, min_samples)
+        k_list = self.check_k(breiman_matrix, K_init, min_samples, pct_cover)
         k_bool, percentage_coverage = k_list[0], k_list[1]
 
         if k_bool:
-            while percentage_coverage > 0.9:
+            while percentage_coverage >= pct_cover:
                 new_K = K_trial + step
-                k_list = self.check_k(breiman_matrix, new_K, min_samples)
+                k_list = self.check_k(breiman_matrix, new_K, min_samples, pct_cover)
                 if not k_list[0]:
                     break
                 else:
                     K_trial = new_K
                     percentage_coverage = k_list[1]
                 percentage_coverage = np.mean(
-                    np.sum(breiman_matrix > new_K, axis=1) > min_samples
+                    np.sum(breiman_matrix >= new_K, axis=1) > min_samples
                 )
                 K_trial = new_K
         else:
-            while percentage_coverage < 0.9:
+            while percentage_coverage < pct_cover:
                 new_K = K_trial - step
-                k_list = self.check_k(breiman_matrix, new_K, min_samples)
+                k_list = self.check_k(breiman_matrix, new_K, min_samples, pct_cover)
                 K_trial = new_K
                 if k_list[0]:
                     break
@@ -275,7 +284,7 @@ class ConformalLoforest(BaseEstimator):
 
         return K_trial
 
-    def compute_cutoffs(self, X, K_init=50):
+    def compute_cutoffs(self, X, min_samples=100, step=5, pct_cover=0.95):
         # if weighting is enabled
         if self.weighting:
             w = self.compute_difficulty(X)
@@ -299,7 +308,14 @@ class ConformalLoforest(BaseEstimator):
         breiman_matrix = self.compute_breiman_matrix(X_tree)
 
         if self.tune:
-            K = self.tune_k(breiman_matrix=breiman_matrix, K_init=K_init)
+            K = self.tune_k(
+                breiman_matrix=breiman_matrix,
+                K_init=self.K,
+                min_samples=min_samples,
+                step=step,
+                pct_cover=pct_cover,
+            )
+            self.K = K
         else:
             K = self.K
 
