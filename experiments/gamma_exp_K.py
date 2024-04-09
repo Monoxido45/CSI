@@ -188,47 +188,43 @@ def compute_MAE_N(
     rng = np.random.default_rng(seed)
     for N_fixed in tqdm(N, desc="Computing coverage for each N"):
         for B_fixed in tqdm(B, desc="Computing coverage for each B"):
-            mae_vector = np.zeros((n_it, 1))
-            for it in tqdm(range(0, n_it), desc="Running simulations"):
-                quantiles_dict = obtain_quantiles(
-                    thetas,
-                    N=N_fixed,
-                    B=B_fixed,
-                    alpha=alpha,
-                    min_samples_leaf=min_samples_leaf,
-                    naive_n=naive_n,
-                    rng=rng,
-                    threshold=threshold,
-                    n_estimators=n_estimators,
-                    K=K,
-                )
-                err_data = np.zeros((thetas.shape[0], 1))
-                l = 0
-                for theta in thetas:
-                    lambda_stat = np.zeros(n)
-                    for i in range(0, n):
-                        lambda_stat[i] = sim_gamma(
-                            gamma_shape=theta[0], 
-                            gamma_scale=theta[1], 
-                            n=N_fixed, 
-                            rng=rng,
-                            threshold=threshold,
-                        )
-
-                    loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
-
-                    err_loforest = np.abs(loforest_cover - (1 - alpha))
-
-                    err_data[l, :] = np.array(
-                        [err_loforest]
+            quantiles_dict = obtain_quantiles(
+                thetas,
+                N=N_fixed,
+                B=B_fixed,
+                alpha=alpha,
+                min_samples_leaf=min_samples_leaf,
+                naive_n=naive_n,
+                rng=rng,
+                threshold=threshold,
+                n_estimators=n_estimators,
+                K=K,
+            )
+            err_data = np.zeros((thetas.shape[0], 1))
+            l = 0
+            for theta in thetas:
+                lambda_stat = np.zeros(n)
+                for i in range(0, n):
+                    lambda_stat[i] = sim_gamma(
+                        gamma_shape=theta[0], 
+                        gamma_scale=theta[1], 
+                        n=N_fixed, 
+                        rng=rng,
+                        threshold=threshold,
                     )
 
-                    l += 1
+                loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
 
-                mae_vector[it, :] = np.mean(err_data, axis=0)
+                err_loforest = np.abs(loforest_cover - (1 - alpha))
+
+                err_data[l, :] = np.array(
+                    [err_loforest]
+                )
+
+                l += 1
                 
-            mae_list.extend(np.mean(mae_vector, axis=0).tolist())
-            se_list.extend((np.std(mae_vector, axis=0) / np.sqrt(n_it)).tolist())
+            mae_list.extend(np.mean(err_data, axis = 0).tolist())
+            se_list.extend((np.std(err_data, axis = 0)/np.sqrt(thetas.shape[0])).tolist())
             methods_list.extend(["LOFOREST"])
             N_list.extend([N_fixed] * 1)
             B_list.extend([B_fixed] * 1)
@@ -244,7 +240,10 @@ def compute_MAE_N(
     )
     
     return stats_data
-  
+
+
+original_path = os.getcwd()
+new_path = original_path + "/experiments/results_data/"
 
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the gamma example")
@@ -269,5 +268,5 @@ if __name__ == "__main__":
         )
         print(f"Done for K = {k}")
 
-        with open("experiment_K_gamma.pkl", "wb") as f:
+        with open(new_path + "experiment_K_gamma.pkl", "wb") as f:
             pickle.dump(cov_5000, f)

@@ -134,10 +134,8 @@ def compute_MAE_N(
     se_list = []
     methods_list = []
     B_list = []
-    j = 0
     rng = np.random.default_rng(seed)
     for N_fixed in tqdm(N, desc="Computing coverage for each N"):
-        k = 0
         for B_fixed in tqdm(B, desc="Computing coverage for each B"):
             # computing all quantiles for fixed N
             quantiles_dict = obtain_quantiles(
@@ -192,10 +190,12 @@ def compute_MAE_N(
     )
     return stats_data
 
+original_path = os.getcwd()
+new_path = original_path + "/experiments/results_data/gmm_experiments/"
 
 if __name__ == "__main__":
 
-    n_out = 750
+    n_out = 300
     thetas = np.linspace(-4.999, 4.999, n_out)
     K_s = range(30, 90, 5)
     cov_5000 = dict()
@@ -213,9 +213,9 @@ if __name__ == "__main__":
         )
         print(f"Done for K = {k}")
         
-        with open("gmm_experiment/cov_5000.pkl", "wb") as f:
+        with open(new_path + "cov_5000.pkl", "wb") as f:
           pickle.dump(cov_5000, f)
         
     # save the list of dataframes cov_5000
-    with open("gmm_experiment/cov_5000.pkl", "wb") as f:
+    with open(path + "cov_5000.pkl", "wb") as f:
         pickle.dump(cov_5000, f)

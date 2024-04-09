@@ -155,47 +155,43 @@ def compute_MAE_N(
     B_list = []
     mae_list = []
     se_list = []
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     for N_fixed in tqdm(N, desc="Computing coverage for each N"):
         for B_fixed in tqdm(B, desc="Computing coverage for each B"):
-            rng = np.random.default_rng(seed)
-            mae_vector = np.zeros((n_it, 1))
-            for it in tqdm(range(0, n_it),  desc="Computing coverage for each theta"):
-                quantiles_dict = obtain_quantiles(
-                    thetas,
+            quantiles_dict = obtain_quantiles(
+                thetas,
+                N=N_fixed,
+                B=B_fixed,
+                alpha=alpha,
+                min_samples_leaf=min_samples_leaf,
+                naive_n=naive_n,
+                sigma=sigma,
+                rng=rng,
+                K = K,
+            )
+            err_data = np.zeros((thetas.shape[0], 1))
+            l = 0
+            for theta in thetas:
+                lambda_stat = sim_lambda(
+                    B=n,
                     N=N_fixed,
-                    B=B_fixed,
-                    alpha=alpha,
-                    min_samples_leaf=min_samples_leaf,
-                    naive_n=naive_n,
-                    sigma=sigma,
+                    theta=theta,
                     rng=rng,
-                    K = K,
+                    sigma=sigma,
                 )
-                err_data = np.zeros((thetas.shape[0], 1))
-                l = 0
-                for theta in thetas:
-                    lambda_stat = sim_lambda(
-                        B=n,
-                        N=N_fixed,
-                        theta=theta,
-                        rng=rng,
-                        sigma=sigma,
-                    )
 
-                    loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
+                loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
 
-                    err_loforest = np.abs(loforest_cover - (1 - alpha))
+                err_loforest = np.abs(loforest_cover - (1 - alpha))
 
-                    err_data[l, :] = np.array(
-                        [err_loforest]
-                    )
+                err_data[l, :] = np.array(
+                    [err_loforest]
+                )
 
-                    l += 1
-                mae_vector[it, :] = np.mean(err_data, axis=0)
+                l += 1
 
-            mae_list.extend(np.mean(mae_vector, axis=0).tolist())
-            se_list.extend((np.std(mae_vector, axis=0) / np.sqrt(n_it)).tolist())
+            mae_list.extend(np.mean(err_data, axis = 0).tolist())
+            se_list.extend((np.std(err_data, axis = 0)/np.sqrt(thetas.shape[0])).tolist())
             methods_list.extend(["LOFOREST"])
             N_list.extend([N_fixed] * 1)
             B_list.extend([B_fixed] * 1)
@@ -214,6 +210,8 @@ def compute_MAE_N(
     return stats_data
 
 
+new_path = original_path + "/experiments/results_data/"
+
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the BFF example")
     n_out = 500
@@ -226,11 +224,13 @@ if __name__ == "__main__":
 
         cov_5000[k] = compute_MAE_N(
             thetas,
+            N = np.array([1, 10, 20, 50]),
             naive_n=100,
+            n_it = 10,
             K=k,
             seed=1250,
         )
         print(f"Done for K = {k}")
 
-        with open("experiment_K_bff.pkl", "wb") as f:
+        with open(new_path + "experiment_K_bff.pkl", "wb") as f:
             pickle.dump(cov_5000, f)
