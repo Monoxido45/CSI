@@ -36,15 +36,12 @@ def sim_gmm(B, theta, rng):
     )
     return X
 
-def sim_LRT(B, theta, rng):
-    X = sim_gmm(B=B, theta=theta, rng=rng)
-    return compute_lrt_statistic(theta, X)
-
-
 def sim_lambda(theta, rng, B=1000, N=100):
-    vLRT = np.vectorize(sim_LRT)
-    LRT_stat = vLRT(np.tile(N, B), theta, rng)
-    return LRT_stat
+    lambdas = np.zeros(B)
+    for i in range(0, B):
+      X = sim_gmm(B = N, theta = theta, rng = rng)
+      lambdas[i] = compute_lrt_statistic(theta, X)
+    return lambdas
 
 
 # randomly sampling from gmm
@@ -196,7 +193,7 @@ new_path = original_path + "/experiments/results_data/gmm_experiments/"
 if __name__ == "__main__":
 
     n_out = 300
-    thetas = np.linspace(-4.999, 4.999, n_out)
+    thetas = np.linspace(0.001, 4.999, n_out)
     K_s = range(30, 90, 5)
     cov_5000 = dict()
 
@@ -215,7 +212,3 @@ if __name__ == "__main__":
         
         with open(new_path + "cov_5000.pkl", "wb") as f:
           pickle.dump(cov_5000, f)
-        
-    # save the list of dataframes cov_5000
-    with open(path + "cov_5000.pkl", "wb") as f:
-        pickle.dump(cov_5000, f)

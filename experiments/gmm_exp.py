@@ -25,30 +25,28 @@ from os import path
 
 original_path = os.getcwd()
 
-# main functions to simulate and compute quantiles for gmm
-def sim_gmm(n, theta):
-    group = np.random.binomial(n=1, p=0.5, size=n)
-    X = ((group == 0) * (np.random.normal(theta, 1, size=n))) + (
-        (group == 1) * (np.random.normal(-theta, 1, size=n))
+def sim_gmm(B, theta, rng):
+    group = rng.binomial(n=1, p=0.5, size=B)
+    X = ((group == 0) * (rng.normal(theta, 1, size=B))) + (
+        (group == 1) * (rng.normal(-theta, 1, size=B))
     )
     return X
 
-def sim_lambda(theta, B = 1000, N = 100):
-    LRT_stat = np.zeros(B)
+def sim_lambda(theta, rng, B=1000, N=100):
+    lambdas = np.zeros(B)
     for i in range(0, B):
-        X = sim_gmm(N, theta)
-        LRT_stat[i] = compute_lrt_statistic(theta, X)
-    return LRT_stat
+      X = sim_gmm(B = N, theta = theta, rng = rng)
+      lambdas[i] = compute_lrt_statistic(theta, X)
+    return lambdas
 
 
 # randomly sampling from gmm
-def sample_gmm(n, N, seed=450):
-    np.random.seed(seed)
-    thetas = np.random.uniform(0, 5, size=n)
+def sample_gmm(n, N, rng):
+    thetas = rng.uniform(0, 5, size=n)
     lambdas = np.zeros(n)
     i = 0
     for theta in thetas:
-        X = sim_gmm(N, theta)
+        X = sim_gmm(B=N, theta=theta, rng=rng)
         lambdas[i] = compute_lrt_statistic(theta, X)
         i += 1
     return thetas, lambdas
@@ -64,30 +62,23 @@ def l_func(theta, x):
     return -(np.sum(p_x))
 
 
-
 # likelihood ratio statistic
 def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
     # computing MLE by grid
     res = minimize_scalar(
-    l_func, 
-    args=(X), 
-    bounds=(0, 5), 
-    tol = 0.01, 
-    options={"maxiter": 100})
-    
+        l_func, args=(X), bounds=(lower, upper), tol=0.01, options={"maxiter": 100}
+    )
     mle_theta = res.x
     lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
 
-
 # naive method
-def naive(alpha, B=1000, N=100, lower=0, upper=5, seed=250, naive_n=100):
-    np.random.seed(seed)
+def naive(alpha, rng, B=1000, N=100, lower=0, upper=5, naive_n=100):
     n_grid = int(B / naive_n)
     thetas = np.linspace(lower, upper, n_grid)
     quantiles = {}
     for theta in thetas:
-        LRT_stat = sim_lambda(theta = theta, B = naive_n, N = N)
+        LRT_stat = sim_lambda(theta = theta, B = naive_n, N = N, rng = rng)
         quantiles[theta] = np.quantile(LRT_stat, q=1 - alpha)
     return quantiles
 
@@ -106,19 +97,22 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
 def obtain_quantiles(
     thetas,
     N,
+    rng,
     B=1000,
     alpha=0.05,
     naive_seed=45,
     min_samples_leaf=100,
+    n_estimators = 200,
+    K = 50,
     naive_n=500,
     sample_seed=25,
 ):
     # fitting and predicting naive
-    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, seed=naive_seed)
+    naive_quantiles = naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng = rng)
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    theta_sim, model_lambdas = sample_gmm(n=B, N=N, seed=sample_seed)
+    theta_sim, model_lambdas = sample_gmm(n=B, N=N, rng = rng)
     model_thetas = theta_sim.reshape(-1, 1)
 
     locart_object = LocartSplit(
@@ -133,7 +127,8 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf
+        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf,
+        n_estimators = n_estimators, K = K,
     )
 
     # boosting quantiles
@@ -177,12 +172,14 @@ def compute_MAE_N(
     thetas,
     n_it = 100,
     N=np.array([1, 10, 100, 1000]),
-    B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
+    B=np.array([500, 1000, 5000, 10000, 15000]),
     alpha=0.05,
     n=1000,
     seed=45,
     min_samples_leaf=300,
     naive_n=500,
+    n_estimators = 200,
+    K = 50,
 ):
   folder_path = (
             "/experiments/results_data"
@@ -190,27 +187,17 @@ def compute_MAE_N(
             
   if not (path.exists(original_path + folder_path)):
     os.mkdir(original_path + folder_path)
-        
-  coverage_data = np.zeros((thetas.shape[0] * N.shape[0], 4))
+    
   N_list = []
   methods_list = []
   B_list = []
   mae_list = []
   se_list = []
-  j = 0
-  np.random.seed(seed)
+  
+  rng = np.random.default_rng(seed)
   for N_fixed in tqdm(N, desc="Computing coverage for each N"):
     for B_fixed in B:
       print("Running example simulating {} samples".format(B_fixed))
-      seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-              )
-      sample_seeds = np.random.randint(
-              0, 10**8,
-              n_it,
-        )
-      h = 0
       mae_vector = np.zeros((n_it, 4))
       for it in range(0, n_it):
         start = time.time()
@@ -225,10 +212,11 @@ def compute_MAE_N(
             N=N_fixed,
             B=B_fixed,
             alpha=alpha,
-            naive_seed=seeds[it],
+            rng = rng,
             min_samples_leaf=min_samples_leaf,
             naive_n=naive_n,
-            sample_seed=sample_seeds[it],
+            n_estimators = n_estimators,
+            K = K,
         )
         err_data = np.zeros((thetas.shape[0], 4))
         l = 0
@@ -238,6 +226,7 @@ def compute_MAE_N(
                 B=n,
                 N=N_fixed,
                 theta=theta,
+                rng = rng,
             )
 
           # comparing coverage of methods
@@ -259,8 +248,6 @@ def compute_MAE_N(
 
           l += 1
         mae_vector[it, :] = np.mean(err_data, axis = 0)
-        j += 1
-        h += 1
         
       mae_list.extend(np.mean(mae_vector, axis = 0).tolist())
       se_list.extend((np.std(mae_vector, axis = 0)/np.sqrt(n_it)).tolist())
@@ -286,11 +273,14 @@ if __name__ == "__main__":
     n_out = 150
     thetas = np.linspace(0.001, 4.999, n_out)
     n_it = int(input("Input the desired number of experiment repetition to be made: "))
-    compute_MAE_N(thetas, n_it = n_it, naive_n = 100)
+    compute_MAE_N(
+      thetas,
+      N=np.array([1, 10, 50, 100]), 
+      n_it = n_it, 
+      naive_n = 100
+      )
     
     
-
-  
   
 
 
