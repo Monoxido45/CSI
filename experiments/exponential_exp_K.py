@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
         cov_5000[k] = compute_MAE_N(
             thetas,
-            N = np.array([1, 10, 20, 50, 100, 1000]),
+            N = np.array([5, 10, 20, 50, 100, 1000]),
             B=np.array([1000, 5000, 10000, 15000]),
             naive_n=100,
             K=k,

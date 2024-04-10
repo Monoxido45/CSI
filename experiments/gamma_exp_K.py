@@ -259,7 +259,7 @@ if __name__ == "__main__":
         cov_5000[k] = compute_MAE_N(
             thetas_grid,
             B=np.array([1000, 5000, 10000, 15000]),
-            N=np.array([1, 10, 20, 50]),
+            N=np.array([5, 10, 20, 50]),
             min_samples_leaf=300,
             n_estimators=200,
             naive_n=100,
