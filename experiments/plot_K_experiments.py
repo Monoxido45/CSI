@@ -48,7 +48,7 @@ g.add_legend()
 # savefigure
 plt.savefig(original_path + "/experiments/figures/exp_K_experiment.pdf")
 
-exp_data["K"] = exp_data["K"].astype(int)
+exp_data["K"] = exp_data["K"].astype(float)
 
 # Select the optimal K for each B and N in exp_data
 optimal_K = (
@@ -128,7 +128,7 @@ g.add_legend()
 plt.savefig(original_path + "/experiments/figures/bff_K_experiment.pdf")
 
 
-exp_data["K"] = exp_data["K"].astype(int)
+bff_data["K"] = bff_data["K"].astype(float)
 
 # Select the optimal K for each B and N in exp_data
 optimal_K = (
@@ -209,7 +209,7 @@ g.add_legend()
 # savefigure
 plt.savefig(original_path + "/experiments/figures/gamma_K_experiment.pdf")
 
-exp_data["K"] = exp_data["K"].astype(int)
+gamma_data["K"] = gamma_data["K"].astype(float)
 
 # Select the optimal K for each B and N in exp_data
 optimal_K = (
@@ -269,12 +269,12 @@ for key in obj_exp.keys():
     df_list.append(data)
 
 # obtaining final data
-gamma_data = pd.concat(df_list)
+gmm_data = pd.concat(df_list)
 
 # obtaining graph
 sns.set(style="white", font_scale=1.5)
 g = sns.FacetGrid(
-    gamma_data,
+    gmm_data,
     col="N",
     col_wrap=2,
     height=8,
@@ -290,11 +290,11 @@ g.add_legend()
 # savefigure
 plt.savefig(original_path + "/experiments/figures/gmm_K_experiment.pdf")
 
-exp_data["K"] = exp_data["K"].astype(int)
+gmm_data["K"] = gmm_data["K"].astype(float)
 
 # Select the optimal K for each B and N in exp_data
 optimal_K = (
-    gamma_data.groupby(["B", "N"])
+    gmm_data.groupby(["B", "N"])
     .apply(lambda x: x.nsmallest(n=1, columns="MAE"))
     .reset_index(drop=True)
 )
@@ -333,4 +333,3 @@ g.map(sns.lineplot, "B", "MAE")
 plt.tight_layout()
 plt.savefig(original_path + "/experiments/figures/gmm_optimal_K_loss.pdf")
 plt.show()
-
