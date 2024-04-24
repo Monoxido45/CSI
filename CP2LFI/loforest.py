@@ -4,8 +4,6 @@ from copy import deepcopy
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
-
-# using xgboost random forest regressor to build random forests with quantile loss
 from xgboost import XGBRegressor
 import scipy.stats as st
 
@@ -34,14 +32,18 @@ class ConformalLoforest(BaseEstimator):
         **kwargs
     ):
         """
-        Input: (i)    nc_score: Conformity score of choosing. It can be specified by instantiating a conformal score class based on the Scores basic class.
-               (ii)   base_model: Base model with fit and predict methods to be embedded in the conformity score class.
-               (iii)  alpha: Float between 0 and 1 specifying the miscoverage level of resulting prediction region.
-               (iv)   base_model_type: Boolean indicating whether the base model ouputs quantiles or not. Default is False.
-               (v)    cart_type: Set "CART" to obtain LOCART prediction intervals and "RF" to obtain LOFOREST prediction intervals. Default is CART.
-               (vi)   split_calib: Boolean designating if we should split the calibration set into partitioning and cutoff set. Default is True.
-               (vii)  weighting: Set whether we should augment the feature space with conditional variance (difficulty) estimates. Default is False.
-               (viii) **kwargs: Additional keyword arguments passed to fit base_model.
+        Initialize the ConformalLoforest object.
+
+        Parameters:
+        - nc_score: Conformity score of choosing. It can be specified by instantiating a conformal score class based on the Scores basic class.
+        - base_model: Base model with fit and predict methods to be embedded in the conformity score class.
+        - alpha: Float between 0 and 1 specifying the miscoverage level of resulting prediction region.
+        - is_fitted: Boolean indicating whether the base model is already fitted. Default is False.
+        - base_model_type: Boolean indicating whether the base model outputs quantiles or not. Default is None.
+        - split_calib: Boolean designating if we should split the calibration set into partitioning and cutoff set. Default is True.
+        - weighting: Set whether we should augment the feature space with conditional variance (difficulty) estimates. Default is False.
+        - tune_K: Boolean indicating whether to tune the parameter K. Default is False.
+        - **kwargs: Additional keyword arguments passed to fit base_model.
         """
         self.base_model_type = base_model_type
         if ("Quantile" in str(nc_score)) or (base_model_type == True):
@@ -60,16 +62,16 @@ class ConformalLoforest(BaseEstimator):
 
     def fit(self, X, y, random_seed_tree=1250, **kwargs):
         """
-        Fit base model embeded in the conformal score class to the training set.
-        If "weigthing" is True, we fit a Random Forest model to obtain variance estimations as done in Bostrom et.al.(2021).
-        --------------------------------------------------------
+        Fit the base model embedded in the conformal score class to the training set.
 
-        Input: (i)    X: Training numpy feature matrix
-               (ii)   y: Training label array
-               (iii)  random_seed_tree: Random Forest random seed for variance estimation (if weighting parameter is True).
-               (iv)   **kwargs: Keyword arguments passed to fit the random forest used for variance estimation.
+        Parameters:
+        - X: Training numpy feature matrix.
+        - y: Training label array.
+        - random_seed_tree: Random Forest random seed for variance estimation (if weighting parameter is True).
+        - **kwargs: Keyword arguments passed to fit the random forest used for variance estimation.
 
-        Output: LocartSplit object
+        Returns:
+        - self: The fitted ConformalLoforest object.
         """
         self.nc_score.fit(X, y)
         if self.weighting == True:
@@ -99,19 +101,24 @@ class ConformalLoforest(BaseEstimator):
         **kwargs
     ):
         """
-        Calibrate conformity score using conformal Random Forest
-        As default, we fix "min_samples_leaf" as 100 for both the CART and RF algorithms,meaning that each partition element will have at least
-        100 samples each, and use the sklearn default for the remaining parameters. To generate other partitioning schemes, all RF and CART parameters
-        can be changed through keyword arguments, but we recommend changing only the "min_samples_leaf" argument if needed.
-        --------------------------------------------------------
+        Calibrate the conformity score using conformal Random Forest.
 
-        Input: (i)    X_calib: Calibration numpy feature matrix
-               (ii)   y_calib: Calibration label array
-               (iii)  random_seed: Random seed for CART or Random Forest fitted to the confomity scores.
-               (iv)   train_size: Proportion of calibration data used in partitioning.
-               (v)    **kwargs: Keyword arguments to be passed to Random Forest or XGBoost Random Forest.
+        Parameters:
+        - X_calib: Calibration numpy feature matrix.
+        - y_calib: Calibration label array.
+        - random_seed: Random seed for CART or Random Forest fitted to the conformity scores.
+        - train_size: Proportion of calibration data used in partitioning.
+        - objective: Objective function for calibration. Options are "mse_based" and "quantile". Default is "mse_based".
+        - K: Number of trees to use in the local forest. If None, K is set to half the number of estimators in the random forest. Default is None.
+        - n_estimators: Number of trees in the random forest. Default is 200.
+        - min_samples_leaf: Minimum number of samples required to be at a leaf node. Default is 100.
+        - min_impurity_decrease: Minimum impurity decrease required for a split. Default is 0.
+        - max_features: Maximum number of features to consider when looking for the best split. Default is 0.9.
+        - colsample_bynode: Subsample ratio of columns for each split. Default is 0.9.
+        - **kwargs: Keyword arguments to be passed to Random Forest or XGBoost Random Forest.
 
-        Ouput: Vector of cutoffs.
+        Returns:
+        - None
         """
         res = self.nc_score.compute(X_calib, y_calib)
 
@@ -144,8 +151,6 @@ class ConformalLoforest(BaseEstimator):
                 min_impurity_decrease=min_impurity_decrease,
                 max_features=max_features,
             ).set_params(**kwargs)
-
-        # pinball loss still not working
         elif objective == "quantile":
             base_model = XGBRegressor(
                 n_estimators=1,
@@ -182,11 +187,19 @@ class ConformalLoforest(BaseEstimator):
             self.res_leaves = self.RF.apply(X_calib_test)
         elif objective == "quantile":
             self.objective = "quantile"
-            # obtaining leaves by iterating over estimator
             self.res_leaves = self.get_bagging_leaves(X_calib_test)
         return None
 
     def get_bagging_leaves(self, X_calib):
+        """
+        Get the leaves of the trees in the bagging ensemble.
+
+        Parameters:
+        - X_calib: Calibration numpy feature matrix.
+
+        Returns:
+        - leaves_matrix: Matrix of leaves for each sample in X_calib.
+        """
         estimators_list = self.RF.estimators_
         leaves_matrix = np.zeros((X_calib.shape[0], len(estimators_list)))
         j = 0
@@ -221,8 +234,12 @@ class ConformalLoforest(BaseEstimator):
         # computing variance for each dataset row
         return cart_pred.var(1)
 
-    def compute_breiman_matrix(self, X_test):
+    def compute_breiman_matrix(self, X_test, leaves_obs_comp=False):
         test_size = X_test.shape[0]
+        if leaves_obs_comp:
+            leaves_obs = self.leaves_obs
+        else:
+            leaves_obs = self.RF.apply(X_test)
         calib_size = self.res_leaves.shape[0]
 
         # Define a function to compute a single row of the Breiman matrix
@@ -233,7 +250,7 @@ class ConformalLoforest(BaseEstimator):
 
         breiman_matrix = np.zeros((test_size, calib_size))
         for i in range(test_size):
-            leaves_obs_sel = self.leaves_obs[i, :]
+            leaves_obs_sel = leaves_obs[i, :]
             matches = self.res_leaves == leaves_obs_sel
             breiman_matrix[i, :] = matches.sum(axis=1)
 
@@ -284,7 +301,7 @@ class ConformalLoforest(BaseEstimator):
 
         return K_trial
 
-    def compute_cutoffs(self, X, min_samples=100, step=5, pct_cover=0.95):
+    def compute_cutoffs(self, X, K=None, breiman_mat=None):
         # if weighting is enabled
         if self.weighting:
             w = self.compute_difficulty(X)
@@ -305,22 +322,17 @@ class ConformalLoforest(BaseEstimator):
         cutoffs = np.zeros(test_size)
 
         # computing breiman matrix
-        breiman_matrix = self.compute_breiman_matrix(X_tree)
-
-        if self.tune:
-            K = self.tune_k(
-                breiman_matrix=breiman_matrix,
-                K_init=self.K,
-                min_samples=min_samples,
-                step=step,
-                pct_cover=pct_cover,
-            )
-            self.K = K
+        if breiman_mat is None:
+            breiman_matrix = self.compute_breiman_matrix(X_tree)
         else:
+            breiman_matrix = breiman_mat
+
+        # choosing K again
+        if K is None:
             K = self.K
 
         for i in range(0, test_size):
-            obs_idx = np.where(breiman_matrix >= K)[0]
+            obs_idx = np.where(breiman_matrix[i, :] >= K)[0]
 
             # obtaining cutoff based on found residuals
             local_res = self.res_vector[obs_idx]
@@ -334,3 +346,48 @@ class ConformalLoforest(BaseEstimator):
     def predict(self, X):
         cutoffs = self.compute_cutoffs(X)
         return self.nc_score.predict(X, cutoffs)
+
+
+def tune_loforest_LFI(
+    loforest_model, theta_data, lambda_data, K_grid=np.arange(30, 85, 5)
+):
+    """
+    Tune K parameter of the loforest model using the a test data set and generated lambda
+
+    Parameters:
+    - loforest_model: Already fitted loforest model to be tuned.
+    - theta_data: Theta dataset for validation.
+    - lambda_data: Lambda dataset for validation, each row gives.
+    - K_grid: Grid of K to tune K.
+
+    Returns:
+    Tuned K
+    """
+    # computing breiman matrix of validation data
+    breiman_mat = loforest_model.compute_breiman_matrix(theta_data)
+
+    # cutoffs dict
+    cutoffs = {}
+
+    # compute cutoffs for K_grid
+    for K in K_grid:
+        cutoffs[K] = loforest_model.compute_cutoffs(
+            theta_data, breiman_mat=breiman_mat, K=K
+        )
+
+    # also compute for
+
+    # computing loss through lambda_data
+    err_data = np.zeros((lambda_data.shape[0], K_grid.shape[0]))
+    i = 0
+    for lambdas in lambda_data:
+        j = 0
+        for K in K_grid:
+            coverage = np.mean(lambdas <= cutoffs[K][j])
+            err_data[i, j] = np.abs(coverage - (1 - loforest_model.alpha))
+            j += 1
+        i += 1
+
+    mae_array = np.mean(err_data, axis=0)
+    # selecting K that minimizes validation error
+    return K_grid[np.argmin(mae_array)]
