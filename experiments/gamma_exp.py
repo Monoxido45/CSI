@@ -284,8 +284,8 @@ def compute_MAE_N(
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the gamma example")
     n_out = 50
-    a_s = np.linspace(4.0001, 9.9999, n_out)
-    b_s = np.linspace(2.0001, 7.9999, n_out)
+    a_s = np.linspace(2.0001, 7.9999, n_out)
+    b_s = np.linspace(4.0001, 9.9999, n_out)
     thetas_grid = np.c_[list(itertools.product(a_s, b_s))]
     n_it = int(input("Input the desired numper of experiment repetition to be made: "))
     compute_MAE_N(thetas_grid, B=np.array([1000, 5000, 10000, 15000]), N=np.array([1, 10, 20, 50]),
