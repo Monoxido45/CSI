@@ -1,21 +1,16 @@
 from sklearn.ensemble import HistGradientBoostingRegressor
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 # loforest and locart functions
 from CP2LFI.loforest import ConformalLoforest, tune_loforest_LFI
 from CP2LFI.scores import LambdaScore
 
-from clover import Scores
 from clover import LocartSplit
 
-from copy import deepcopy
 from tqdm import tqdm
 
 from scipy import stats
-from scipy.optimize import minimize_scalar
 
 import itertools
 import time
@@ -56,11 +51,11 @@ def sample_gamma(n, N, rng, threshold=None):
 def naive(alpha, rng, B=1000, N=100, seed=250, naive_n=100, threshold=None):
     np.random.seed(seed)
     n_grid = round(np.sqrt(B / naive_n))
-    a_s = np.linspace(4.0001, 9.9999, n_grid)
-    b_s = np.linspace(2.0001, 7.9999, n_grid)
+    a_s = np.linspace(2.0001, 7.9999, n_grid)
+    b_s = np.linspace(4.0001, 9.9999, n_grid)
 
     quantiles = {}
-    for shape, scale in itertools.product(b_s, a_s):
+    for shape, scale in itertools.product(a_s, b_s):
         lambda_stat = np.zeros(naive_n)
         for i in range(naive_n):
             lambda_stat[i] = sim_gamma(
@@ -211,6 +206,7 @@ def evaluate_coverage_N_tuned_loforest(
     N_lambda=750,
     threshold=30,
     n_it=100,
+    naive_n=100,
 ):
     rng = np.random.default_rng(seed)
     # generate testing grid
@@ -240,6 +236,7 @@ def evaluate_coverage_N_tuned_loforest(
                     B_valid=B_valid,
                     N_lambda=N_lambda,
                     threshold=threshold,
+                    naive_n=naive_n,
                 )
 
                 err_data = np.zeros((thetas.shape[0], 5))
@@ -247,7 +244,7 @@ def evaluate_coverage_N_tuned_loforest(
                 # print("tuned K = {}".format(K_loforest))
 
                 # Check if the true lambda values fall within the predicted quantiles
-                i = 0
+                l = 0
                 for theta in thetas:
                     lambda_stat = np.zeros(n)
                     for j in range(0, n):
@@ -260,18 +257,18 @@ def evaluate_coverage_N_tuned_loforest(
                         )
 
                     locart_coverage = np.mean(
-                        lambda_stat <= quantiles_dict["locart"][i]
+                        lambda_stat <= quantiles_dict["locart"][l]
                     )
                     loforest_tuned_coverage = np.mean(
-                        lambda_stat <= quantiles_dict["loforest_tuned"][i]
+                        lambda_stat <= quantiles_dict["loforest_tuned"][l]
                     )
                     loforest_fixed_coverage = np.mean(
-                        lambda_stat <= quantiles_dict["loforest_fixed"][i]
+                        lambda_stat <= quantiles_dict["loforest_fixed"][l]
                     )
                     boosting_coverage = np.mean(
-                        lambda_stat <= quantiles_dict["boosting"][i]
+                        lambda_stat <= quantiles_dict["boosting"][l]
                     )
-                    naive_coverage = np.mean(lambda_stat <= quantiles_dict["naive"][i])
+                    naive_coverage = np.mean(lambda_stat <= quantiles_dict["naive"][l])
 
                     err_locart = np.abs(locart_coverage - (1 - alpha))
                     err_loforest_tuned = np.abs(loforest_tuned_coverage - (1 - alpha))
@@ -279,7 +276,7 @@ def evaluate_coverage_N_tuned_loforest(
                     err_boosting = np.abs(boosting_coverage - (1 - alpha))
                     err_naive = np.abs(naive_coverage - (1 - alpha))
 
-                    err_data[i, :] = np.array(
+                    err_data[l, :] = np.array(
                         [
                             err_locart,
                             err_loforest_tuned,
@@ -288,7 +285,7 @@ def evaluate_coverage_N_tuned_loforest(
                             err_naive,
                         ]
                     )
-                    i += 1
+                    l += 1
                 mae_vector[it, :] = np.mean(err_data, axis=0)
 
             mae_list.extend(np.mean(mae_vector, axis=0).tolist())
@@ -319,10 +316,17 @@ def evaluate_coverage_N_tuned_loforest(
 
 
 if __name__ == "__main__":
+    print(
+        "We will now compute all MAE statistics for the gamma example with tuned loforest"
+    )
+    n_it = int(input("Input the desired number of experiment repetition to be made: "))
+    start_time = time.time()
+
     stats_df = evaluate_coverage_N_tuned_loforest(
-        B = np.array([1000, 5000, 10000, 15000]),
-        N = np.array([5, 10, 20, 50]),
+        B=np.array([1000, 5000, 10000, 15000]),
+        N=np.array([5, 10, 20, 50]),
         n_out=50,
+        n_it=n_it,
         n=1000,
         min_samples_leaf=300,
         K=50,
@@ -330,4 +334,10 @@ if __name__ == "__main__":
         B_valid=1000,
         N_lambda=750,
         threshold=30,
+        naive_n=100,
     )
+
+    end_time = time.time()
+
+    running_time = end_time - start_time
+    print(f"The simulation took {running_time} seconds to run.")

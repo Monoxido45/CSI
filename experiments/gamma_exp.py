@@ -1,40 +1,13 @@
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.ensemble import GradientBoostingRegressor
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-# loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest
-from CP2LFI.scores import LambdaScore
-
-from clover import Scores
-from clover import LocartSplit
-
-from copy import deepcopy
-
-from tqdm import tqdm
-
-import os
-from os import path
-
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.ensemble import GradientBoostingRegressor
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from scipy import stats
 
 # loforest and locart functions
 from CP2LFI.loforest import ConformalLoforest
 from CP2LFI.scores import LambdaScore
 
-from clover import Scores
 from clover import LocartSplit
-
-from copy import deepcopy
 
 from tqdm import tqdm
 
@@ -44,11 +17,12 @@ import itertools
 
 original_path = os.getcwd()
 
+
 # simulator
 def sim_gamma(gamma_shape, gamma_scale, n, rng, threshold=None):
-    
+
     random_x = rng.gamma(gamma_shape, gamma_scale, n)
-    
+
     if not threshold:
         threshold = rng.choice(random_x)
 
@@ -59,40 +33,42 @@ def sim_gamma(gamma_shape, gamma_scale, n, rng, threshold=None):
 
     return lambda_stat
 
+
 # randomly sampling from gamma
-def sample_gamma(n, N, rng, threshold = None):
+def sample_gamma(n, N, rng, threshold=None):
     thetas = np.c_[rng.uniform(2, 8, n), rng.uniform(4, 10, n)]
     lambdas = np.zeros(n)
     i = 0
     for shape, scale in thetas:
-        lambdas[i] = sim_gamma(gamma_shape=shape, 
-                               gamma_scale=scale, 
-                               n=N, 
-                               rng =rng, 
-                               threshold = threshold,
-                               )
+        lambdas[i] = sim_gamma(
+            gamma_shape=shape,
+            gamma_scale=scale,
+            n=N,
+            rng=rng,
+            threshold=threshold,
+        )
         i += 1
     return thetas, lambdas
 
 
 # naive method
-def naive(alpha, rng, B=1000, N=100, seed=250, naive_n=100, threshold = None):
+def naive(alpha, rng, B=1000, N=100, seed=250, naive_n=100, threshold=None):
     np.random.seed(seed)
     n_grid = round(np.sqrt(B / naive_n))
     a_s = np.linspace(4.0001, 9.9999, n_grid)
     b_s = np.linspace(2.0001, 7.9999, n_grid)
-    
+
     quantiles = {}
     for shape, scale in itertools.product(b_s, a_s):
         lambda_stat = np.zeros(naive_n)
         for i in range(naive_n):
             lambda_stat[i] = sim_gamma(
-                gamma_shape=shape, 
-                gamma_scale=scale, 
-                n = N, 
-                rng = rng,
-                threshold = threshold,
-                )
+                gamma_shape=shape,
+                gamma_scale=scale,
+                n=N,
+                rng=rng,
+                threshold=threshold,
+            )
 
         quantiles[(shape, scale)] = np.quantile(lambda_stat, q=1 - alpha)
     return quantiles
@@ -107,7 +83,8 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
         idx = thetas_values[np.argmin(distances)]
         quantiles_list.append(quantiles_dict[tuple(idx)])
     return quantiles_list
-  
+
+
 # function to obtain quantiles
 def obtain_quantiles(
     thetas,
@@ -116,17 +93,19 @@ def obtain_quantiles(
     B=1000,
     alpha=0.05,
     min_samples_leaf=100,
-    n_estimators = 200,
-    K = 50,
+    n_estimators=200,
+    K=50,
     naive_n=500,
-    threshold = None
+    threshold=None,
 ):
     # fitting and predicting naive
-    naive_quantiles = naive(alpha, rng = rng, B=B, N=N, naive_n= naive_n, threshold = threshold)
+    naive_quantiles = naive(
+        alpha, rng=rng, B=B, N=N, naive_n=naive_n, threshold=threshold
+    )
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
     # simulating to fit models
-    thetas_sim, model_lambdas = sample_gamma(n=B, N=N, rng = rng, threshold = threshold)
+    thetas_sim, model_lambdas = sample_gamma(n=B, N=N, rng=rng, threshold=threshold)
 
     model_thetas = thetas_sim.reshape(-1, 2)
 
@@ -142,11 +121,11 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, 
-        model_lambdas, 
-        min_samples_leaf=min_samples_leaf, 
-        n_estimators= n_estimators,
-        K = K,
+        model_thetas,
+        model_lambdas,
+        min_samples_leaf=min_samples_leaf,
+        n_estimators=n_estimators,
+        K=K,
     )
 
     # boosting quantiles
@@ -184,9 +163,10 @@ def obtain_quantiles(
 
     return quantile_dict
 
+
 def compute_MAE_N(
     thetas,
-    n_it = 100,
+    n_it=100,
     N=np.array([10, 100, 1000, 5000]),
     B=np.array([500, 1000, 5000, 10000, 15000, 20000]),
     alpha=0.05,
@@ -194,92 +174,95 @@ def compute_MAE_N(
     seed=45,
     min_samples_leaf=300,
     naive_n=500,
-    threshold = 30,
-    n_estimators = 200,
-    K = 50,
+    threshold=30,
+    n_estimators=200,
+    K=50,
 ):
-  folder_path = (
-            "/experiments/results_data"
-            )
-            
-  if not (path.exists(original_path + folder_path)):
-    os.mkdir(original_path + folder_path)
-  N_list = []
-  methods_list = []
-  B_list = []
-  mae_list = []
-  se_list = []
-  j = 0
-  rng = np.random.default_rng(seed)
-  for N_fixed in tqdm(N, desc="Computing coverage for each N"):
-    for B_fixed in B:
-      print("Running example simulating {} samples".format(B_fixed))
-      mae_vector = np.zeros((n_it, 4))
-      for it in range(0, n_it):
-        # computing all quantiles for fixed N
-        quantiles_dict = obtain_quantiles(
-            thetas,
-            N=N_fixed,
-            B=B_fixed,
-            alpha=alpha,
-            min_samples_leaf=min_samples_leaf,
-            naive_n=naive_n,
-            rng = rng,
-            threshold = threshold,
-            n_estimators = n_estimators,
-            K = K,
+    folder_path = "/experiments/results_data"
+
+    if not (path.exists(original_path + folder_path)):
+        os.mkdir(original_path + folder_path)
+    N_list = []
+    methods_list = []
+    B_list = []
+    mae_list = []
+    se_list = []
+    j = 0
+    rng = np.random.default_rng(seed)
+    for N_fixed in tqdm(N, desc="Computing coverage for each N"):
+        for B_fixed in B:
+            print("Running example simulating {} samples".format(B_fixed))
+            mae_vector = np.zeros((n_it, 4))
+            for it in range(0, n_it):
+                # computing all quantiles for fixed N
+                quantiles_dict = obtain_quantiles(
+                    thetas,
+                    N=N_fixed,
+                    B=B_fixed,
+                    alpha=alpha,
+                    min_samples_leaf=min_samples_leaf,
+                    naive_n=naive_n,
+                    rng=rng,
+                    threshold=threshold,
+                    n_estimators=n_estimators,
+                    K=K,
+                )
+                err_data = np.zeros((thetas.shape[0], 4))
+                l = 0
+                for theta in thetas:
+                    lambda_stat = np.zeros(n)
+                    for i in range(0, n):
+                        lambda_stat[i] = sim_gamma(
+                            gamma_shape=theta[0],
+                            gamma_scale=theta[1],
+                            n=N_fixed,
+                            rng=rng,
+                            threshold=threshold,
+                        )
+
+                    # comparing coverage of methods
+                    locart_cover = np.mean(lambda_stat <= quantiles_dict["locart"][l])
+                    loforest_cover = np.mean(
+                        lambda_stat <= quantiles_dict["loforest"][l]
+                    )
+                    boosting_cover = np.mean(
+                        lambda_stat <= quantiles_dict["boosting"][l]
+                    )
+                    naive_cover = np.mean(lambda_stat <= quantiles_dict["naive"][l])
+
+                    # appending the errors
+                    err_locart = np.abs(locart_cover - (1 - alpha))
+                    err_loforest = np.abs(loforest_cover - (1 - alpha))
+                    err_boosting = np.abs(boosting_cover - (1 - alpha))
+                    err_naive = np.abs(naive_cover - (1 - alpha))
+
+                    # saving in numpy array
+                    err_data[l, :] = np.array(
+                        [err_locart, err_loforest, err_boosting, err_naive]
+                    )
+
+                    l += 1
+                mae_vector[it, :] = np.mean(err_data, axis=0)
+
+            mae_list.extend(np.mean(mae_vector, axis=0).tolist())
+            se_list.extend((np.std(mae_vector, axis=0) / np.sqrt(n_it)).tolist())
+            methods_list.extend(["LOCART", "LOFOREST", "boosting", "naive"])
+            N_list.extend([N_fixed] * 4)
+            B_list.extend([B_fixed] * 4)
+
+        # obtaining MAE and standard error for each method
+        stats_data = pd.DataFrame(
+            {
+                "methods": methods_list,
+                "N": N_list,
+                "B": B_list,
+                "MAE": mae_list,
+                "se": se_list,
+            }
         )
-        err_data = np.zeros((thetas.shape[0], 4))
-        l = 0
-        for theta in thetas:
-          lambda_stat = np.zeros(n)
-          for i in range(0, n):
-            lambda_stat[i] = sim_gamma(
-                      gamma_shape=theta[0], 
-                      gamma_scale=theta[1], 
-                      n=N_fixed, 
-                      rng = rng,
-                      threshold= threshold,
-                      )
-                      
-          # comparing coverage of methods
-          locart_cover = np.mean(lambda_stat <= quantiles_dict["locart"][l])
-          loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
-          boosting_cover = np.mean(lambda_stat <= quantiles_dict["boosting"][l])
-          naive_cover = np.mean(lambda_stat <= quantiles_dict["naive"][l])
+        # saving data
+        stats_data.to_csv(original_path + folder_path + "/gamma_data.csv")
 
-          # appending the errors
-          err_locart = np.abs(locart_cover - (1 - alpha))
-          err_loforest = np.abs(loforest_cover - (1 - alpha))
-          err_boosting = np.abs(boosting_cover - (1 - alpha))
-          err_naive = np.abs(naive_cover - (1 - alpha))
-
-          # saving in numpy array
-          err_data[l, :] = np.array(
-              [err_locart, err_loforest, err_boosting, err_naive]
-          )
-
-          l += 1
-        mae_vector[it, :] = np.mean(err_data, axis = 0)
-        
-      mae_list.extend(np.mean(mae_vector, axis = 0).tolist())
-      se_list.extend((np.std(mae_vector, axis = 0)/np.sqrt(n_it)).tolist())
-      methods_list.extend(["LOCART", "LOFOREST", "boosting", "naive"])
-      N_list.extend([N_fixed] * 4)
-      B_list.extend([B_fixed] * 4)
-
-    # obtaining MAE and standard error for each method
-    stats_data = pd.DataFrame(
-        {
-            "methods": methods_list,
-            "N": N_list,
-            "B": B_list,
-            "MAE": mae_list,
-            "se": se_list,
-        }
-    )
-    # saving data
-    stats_data.to_csv(original_path + folder_path + "/gamma_data.csv")
 
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the gamma example")
@@ -288,5 +271,10 @@ if __name__ == "__main__":
     b_s = np.linspace(4.0001, 9.9999, n_out)
     thetas_grid = np.c_[list(itertools.product(a_s, b_s))]
     n_it = int(input("Input the desired numper of experiment repetition to be made: "))
-    compute_MAE_N(thetas_grid, B=np.array([1000, 5000, 10000, 15000]), N=np.array([1, 10, 20, 50]),
-    n_it = n_it, naive_n = 100)
+    compute_MAE_N(
+        thetas_grid,
+        B=np.array([1000, 5000, 10000, 15000]),
+        N=np.array([1, 10, 20, 50]),
+        n_it=n_it,
+        naive_n=100,
+    )
