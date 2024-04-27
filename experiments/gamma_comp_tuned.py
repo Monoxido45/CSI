@@ -208,6 +208,10 @@ def evaluate_coverage_N_tuned_loforest(
     n_it=100,
     naive_n=100,
 ):
+    folder_path = "/experiments/results_data"
+    if not (path.exists(original_path + folder_path)):
+        os.mkdir(original_path + folder_path)
+        
     rng = np.random.default_rng(seed)
     # generate testing grid
     a_s = np.linspace(2.0001, 7.9999, n_out)
@@ -293,12 +297,12 @@ def evaluate_coverage_N_tuned_loforest(
                 ["LOCART", "LOFOREST TUNED", "LOFOREST FIXED", "BOOSTING", "NAIVE"]
             )
             se_list.extend(
-                (np.std(err_data, axis=0) / (np.sqrt(thetas.shape[0]))).tolist()
+                (np.std(mae_vector, axis=0) / (np.sqrt(n_it))).tolist()
             )
             N_list.extend([N_fixed] * 5)
             B_list.extend([B_fixed] * 5)
 
-    stats_data = pd.DataFrame(
+        stats_data = pd.DataFrame(
         {
             "methods": methods_list,
             "N": N_list,
@@ -307,12 +311,8 @@ def evaluate_coverage_N_tuned_loforest(
             "se": se_list,
         }
     )
-    folder_path = "/experiments/results_data"
 
-    if not (path.exists(original_path + folder_path)):
-        os.mkdir(original_path + folder_path)
-
-    stats_data.to_csv(original_path + folder_path + "/gamma_data_tuned.csv")
+        stats_data.to_csv(original_path + folder_path + "/gamma_data_tuned.csv")
 
 
 if __name__ == "__main__":

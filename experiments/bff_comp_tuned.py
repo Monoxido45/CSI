@@ -298,12 +298,12 @@ def evaluate_coverage_N_tuned_loforest(
                 ["LOCART", "LOFOREST TUNED", "LOFOREST FIXED", "BOOSTING", "NAIVE"]
             )
             se_list.extend(
-                (np.std(err_data, axis=0) / (np.sqrt(thetas.shape[0]))).tolist()
+                (np.std(mae_vector, axis=0) / (np.sqrt(n_it))).tolist()
             )
             N_list.extend([N_fixed] * 5)
             B_list.extend([B_fixed] * 5)
 
-    stats_data = pd.DataFrame(
+        stats_data = pd.DataFrame(
         {
             "methods": methods_list,
             "N": N_list,
@@ -311,9 +311,9 @@ def evaluate_coverage_N_tuned_loforest(
             "MAE": mae_list,
             "se": se_list,
         }
-    )
+        )
 
-    stats_data.to_csv(original_path + folder_path + "/bff_data_tuned.csv")
+        stats_data.to_csv(original_path + folder_path + "/bff_data_tuned.csv")
 
 
 if __name__ == "__main__":
