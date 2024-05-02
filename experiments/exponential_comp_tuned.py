@@ -86,6 +86,9 @@ def obtain_quantiles(
     naive_quantiles = train_naive(alpha=alpha, B=B, N=N, naive_n=naive_n, rng=rng)
     naive_list = predict_naive_quantile(thetas, naive_quantiles)
 
+    # state of rng
+    rng_state = rng.bit_generator.state
+
     # simulating to fit models
     theta_sim, model_lambdas = generate_parameters_random(B=B, rng=rng, N=N)
     model_thetas = theta_sim.reshape(-1, 1)
@@ -177,7 +180,7 @@ def obtain_quantiles(
         "boosting": boosting_quantiles,
     }
 
-    return quantile_dict, K_loforest
+    return quantile_dict, K_loforest, rng_state
 
 
 def evaluate_coverage_N_tuned_loforest(
@@ -199,7 +202,7 @@ def evaluate_coverage_N_tuned_loforest(
 
     if not (path.exists(original_path + folder_path)):
         os.mkdir(original_path + folder_path)
-        
+
     rng = np.random.default_rng(seed)
     # generate testing grid
     thetas = np.linspace(0.0001, 6.9999, n_out)
@@ -208,13 +211,15 @@ def evaluate_coverage_N_tuned_loforest(
     se_list = []
     B_list = []
     methods_list = []
+    rng_simulate_list = []
+    rng_test_list = []
 
     for N_fixed in tqdm(N, desc="N"):
         for B_fixed in tqdm(B, desc="B"):
             mae_vector = np.zeros((n_it, 5))
             for it in tqdm(range(0, n_it), desc="iteracoes"):
                 # Obtain the quantiles
-                quantiles_dict, K_loforest = obtain_quantiles(
+                quantiles_dict, K_loforest, rng_state = obtain_quantiles(
                     thetas,
                     N_fixed,
                     rng,
@@ -231,10 +236,14 @@ def evaluate_coverage_N_tuned_loforest(
                 err_data = np.zeros((thetas.shape[0], 5))
 
                 # print("tuned K = {}".format(K_loforest))
+                rng_simulate_list.append(rng_state)
 
                 # Check if the true lambda values fall within the predicted quantiles
                 l = 0
                 for theta in thetas:
+                    sim_rng_state = rng.bit_generator.state
+                    rng_test_list.append(sim_rng_state)
+
                     lambda_stat = sim_lambda(
                         B=n,
                         N=N_fixed,
@@ -279,23 +288,38 @@ def evaluate_coverage_N_tuned_loforest(
             methods_list.extend(
                 ["LOCART", "LOFOREST TUNED", "LOFOREST FIXED", "BOOSTING", "NAIVE"]
             )
-            se_list.extend(
-                (np.std(mae_vector, axis=0) / (np.sqrt(n_it))).tolist()
-            )
+            se_list.extend((np.std(mae_vector, axis=0) / (np.sqrt(n_it))).tolist())
             N_list.extend([N_fixed] * 5)
             B_list.extend([B_fixed] * 5)
 
-        stats_data = pd.DataFrame(
-        {
-            "methods": methods_list,
-            "N": N_list,
-            "B": B_list,
-            "MAE": mae_list,
-            "se": se_list,
-        }
-        )
+            stats_data = pd.DataFrame(
+                {
+                    "methods": methods_list,
+                    "N": N_list,
+                    "B": B_list,
+                    "MAE": mae_list,
+                    "se": se_list,
+                }
+            )
 
-        stats_data.to_csv(original_path + folder_path + "/exponential_data_tuned.csv")
+            stats_data.to_csv(
+                original_path + folder_path + "/exponential_data_tuned.csv"
+            )
+
+            # saving rng state lists
+            rng_simulate_array = np.array(rng_simulate_list)
+            np.savez(
+                original_path + folder_path + "/exponential_rng_simulate_list",
+                rng_simulate_array,
+                allow_pickle=True,
+            )
+
+            rng_test_array = np.array(rng_test_list)
+            np.savez(
+                original_path + folder_path + "/exponential_rng_test_list",
+                rng_test_array,
+                allow_pickle=True,
+            )
 
 
 if __name__ == "__main__":
