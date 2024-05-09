@@ -12,7 +12,7 @@ class Simulations:
         random_state=45,
     ):
         # Initialize any necessary variables or attributes here
-        self.model = kind_model
+        self.kind_model = kind_model
         if rng is None:
             self.rng = np.random.default_rng(random_state)
         else:
@@ -24,64 +24,26 @@ class Simulations:
 
         # first model: normal 1d. In this case, the MLE is given by the sample mean
         if self.kind_model == "1d_normal":
-            # function to compute LRT for 1d normal
-            def compute_lrt_statistic(theta_0, X):
-                mle_theta = np.mean(X)
-                lrt_stat = -2 * (
-                    np.log(stats.norm.pdf(X, loc=theta_0, scale=1))
-                    - np.log(stats.norm.pdf(X, loc=mle_theta, scale=1))
-                )
-                return lrt_stat
-
             for i in range(0, B):
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
 
         # second model: gaussian mixture model. In this case, the MLE is computed through optim
         elif self.kind_model == "gmm":
             # function to compute gmm likelihood
-            def l_func(theta, x):
-                # prob from X
-                p_x = np.log(
-                    (0.5 * stats.norm.pdf(x, loc=theta, scale=1))
-                    + (0.5 * stats.norm.pdf(x, loc=-theta, scale=1))
-                )
-                return -(np.sum(p_x))
-
-            def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
-                # computing MLE by grid
-                res = minimize_scalar(
-                    l_func,
-                    args=(X),
-                    bounds=(lower, upper),
-                    tol=0.01,
-                    options={"maxiter": 100},
-                )
-                mle_theta = res.x
-                lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
-                return lrt_stat
-
             for i in range(0, B):
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
             # function to compute LRT for 1d normal
-            def compute_lrt_statistic(theta_0, X):
-                mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
-                lrt_stat = -2 * (
-                    np.log(stats.lognorm.pdf(X, loc=theta_0[0], s=theta_0[1]))
-                    - np.log(stats.norm.pdf(X, loc=mle_mu, s=mle_sigma))
-                )
-                return lrt_stat
-
             for i in range(0, B):
                 X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
         return lambda_array
 
     def LRT_sample(self, B, N):
@@ -93,19 +55,10 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(-5, 5, size=B)
 
-            # function to compute LRT for 1d normal
-            def compute_lrt_statistic(theta_0, X):
-                mle_theta = np.mean(X)
-                lrt_stat = -2 * (
-                    np.log(stats.norm.pdf(X, loc=theta_0, scale=1))
-                    - np.log(stats.norm.pdf(X, loc=mle_theta, scale=1))
-                )
-                return lrt_stat
-
             i = 0
             for theta in thetas:
                 X = self.rng.normal(theta, 1, N)
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
                 i += 1
 
         # second model: gaussian mixture model. In this case, the MLE is computed through optim
@@ -113,54 +66,21 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(0, 5, size=B)
 
-            # function to compute gmm likelihood
-            def l_func(theta, x):
-                # prob from X
-                p_x = np.log(
-                    (0.5 * stats.norm.pdf(x, loc=theta, scale=1))
-                    + (0.5 * stats.norm.pdf(x, loc=-theta, scale=1))
-                )
-                return -(np.sum(p_x))
-
-            def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
-                # computing MLE by grid
-                res = minimize_scalar(
-                    l_func,
-                    args=(X),
-                    bounds=(lower, upper),
-                    tol=0.01,
-                    options={"maxiter": 100},
-                )
-                mle_theta = res.x
-                lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
-                return lrt_stat
-
             for theta in thetas:
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
                 i += 1
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
-            thetas = np.c_[
-                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.25, 6.25, B)
-            ]
-
-            # function to compute LRT for 1d normal
-            def compute_lrt_statistic(theta_0, X):
-                mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
-                lrt_stat = -2 * (
-                    np.log(stats.lognorm.pdf(X, loc=theta_0[0], s=theta_0[1]))
-                    - np.log(stats.norm.pdf(X, loc=mle_mu, s=mle_sigma))
-                )
-                return lrt_stat
+            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
             for theta in thetas:
                 X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta, X)
                 i += 1
         return thetas, lambda_array
 
@@ -169,61 +89,32 @@ class Simulations:
         lambda_array = np.zeros(B)
         # first model: normal 1d. In this case, the MLE is given by the sample mean
         if self.kind_model == "1d_normal":
-            # function to compute KS statistic for 1d normal
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(stats.norm.cdf(X, loc=theta_0, scale=1))
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
 
             for i in range(0, B):
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
         # second model: gaussian mixture model. In this case, the MLE is computed through optim
         elif self.kind_model == "gmm":
             # function to compute KS statistic for gmm
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(
-                    0.5 * stats.norm.cdf(X, loc=theta_0, scale=1)
-                    + 0.5 * stats.norm.cdf(X, loc=-theta_0, scale=1)
-                )
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
-
             for i in range(0, B):
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
             # function to compute KS statistic for lognormal
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(
-                    stats.lognorm.cdf(X, s=theta_0[1], loc=theta_0[0])
-                )
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
-
             for i in range(0, B):
                 X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
-        return lambda_array
+        return thetas, lambda_array
 
     def KS_sample(self, B, N):
         # testing kind of model
@@ -234,19 +125,10 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(-5, 5, size=B)
 
-            # function to compute KS statistic for 1d normal
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(stats.norm.cdf(X, loc=theta_0, scale=1))
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
-
             i = 0
             for theta in thetas:
                 X = self.rng.normal(theta, 1, N)
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
         # second model: gaussian mixture model. In this case, the MLE is computed through optim
@@ -254,46 +136,21 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(0, 5, size=B)
 
-            # function to compute KS statistic for gmm
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(
-                    0.5 * stats.norm.cdf(X, loc=theta_0, scale=1)
-                    + 0.5 * stats.norm.cdf(X, loc=-theta_0, scale=1)
-                )
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
-
             for theta in thetas:
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
-            thetas = np.c_[
-                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.25, 6.25, B)
-            ]
-
-            # function to compute KS statistic for lognormal
-            def compute_ks_statistic(theta_0, X):
-                empirical = stats.ecdf(X)
-                theoretical = np.sort(
-                    stats.lognorm.cdf(X, s=theta_0[1], loc=theta_0[0])
-                )
-                ks_stat = np.sqrt(X.shape[0]) * np.max(
-                    np.abs(theoretical - empirical.cdf.probabilities)
-                )
-                return ks_stat
+            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
             for theta in thetas:
                 X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = compute_ks_statistic(theta, X)
+                lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
         return lambda_array
@@ -305,73 +162,28 @@ class Simulations:
         # first model: normal 1d. In this case, the MLE is given by the sample mean
         if self.kind_model == "1d_normal":
             # function to compute posterior parameters for 1d normal
-            def compute_posterior_par(X):
-                sigma = 0.25
-                n = X.shape[0]
-                mu_value = (1 / ((1 / sigma) + n)) * (np.sum(X))
-                sigma_value = ((1 / sigma) + n) ** (-1)
-                return mu_value, sigma_value
-
             for i in range(0, B):
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                mu_pos, sigma_pos = compute_posterior_par(theta, X)
+                mu_pos, sigma_pos = self.compute_posterior_par(X)
                 lambda_array[i] = -stats.norm.pdf(
                     theta, loc=mu_pos, scale=np.sqrt(sigma_pos)
                 )
 
         elif self.kind_model == "gmm":
             # function to compute posterior parameters for gmm
-            def compute_posterior_par(X):
-                n = X.shape[0]
-                mu_value = (n / (n + 4)) * (np.mean(X))
-                sigma_value = 1 / (n + 4)
-                return mu_value, sigma_value
-
-            def posterior_pdf(theta, x):
-                mu_value, sigma_value = compute_posterior_par(x)
-                # prob from X
-                p_theta = (
-                    0.5
-                    * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
-                ) + (
-                    0.5
-                    * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value))
-                )
-                return p_theta
-
             for i in range(0, B):
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = -posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X)
 
         elif self.kind_model == "lognormal":
             # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
-            def compute_posterior_par(X):
-                nu, mu_0 = 2, 0
-                alpha, beta = 2, 2
-                n = X.shape[0]
-                mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
-                nu_pos = nu + n
-                alpha_pos = alpha + (n / 2)
-                beta_pos = (
-                    beta
-                    + (1 / 2 * n * np.var(X))
-                    + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
-                )
-                return mu_pos, nu_pos, alpha_pos, beta_pos
-
-            def posterior_pdf(theta, X):
-                mu_pos, nu_pos, alpha_pos, beta_pos = compute_posterior_par(X)
-                return stats.norm.pdf(
-                    theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-                ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
-
             for i in range(0, B):
                 X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = -posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X)
 
         return lambda_array
 
@@ -384,17 +196,10 @@ class Simulations:
             thetas = self.rng.uniform(-5, 5, size=B)
 
             # function to compute posterior parameters for 1d normal
-            def compute_posterior_par(X):
-                sigma = 0.25
-                n = X.shape[0]
-                mu_value = (1 / ((1 / sigma) + n)) * (np.sum(X))
-                sigma_value = ((1 / sigma) + n) ** (-1)
-                return mu_value, sigma_value
-
             i = 0
             for theta in thetas:
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                mu_pos, sigma_pos = compute_posterior_par(X)
+                mu_pos, sigma_pos = self.compute_posterior_par(X)
                 lambda_array[i] = -stats.norm.pdf(
                     theta, loc=mu_pos, scale=np.sqrt(sigma_pos)
                 )
@@ -404,67 +209,27 @@ class Simulations:
             thetas = self.rng.uniform(0, 5, size=B)
 
             # function to compute posterior parameters for gmm
-            def compute_posterior_par(X):
-                n = X.shape[0]
-                mu_value = (n / (n + 4)) * (np.mean(X))
-                sigma_value = 1 / (n + 4)
-                return mu_value, sigma_value
-
-            def posterior_pdf(theta, x):
-                mu_value, sigma_value = compute_posterior_par(x)
-                # prob from X
-                p_theta = (
-                    0.5
-                    * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
-                ) + (
-                    0.5
-                    * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value))
-                )
-                return p_theta
-
             i = 0
             for theta in thetas:
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = -posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X)
                 i += 1
 
         elif self.kind_model == "lognormal":
             # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
-            thetas = np.c_[
-                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.25, 6.25, B)
-            ]
-
-            def compute_posterior_par(X):
-                nu, mu_0 = 2, 0
-                alpha, beta = 2, 2
-                n = X.shape[0]
-                mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
-                nu_pos = nu + n
-                alpha_pos = alpha + (n / 2)
-                beta_pos = (
-                    beta
-                    + (1 / 2 * n * np.var(X))
-                    + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
-                )
-                return mu_pos, nu_pos, alpha_pos, beta_pos
-
-            def posterior_pdf(theta, X):
-                mu_pos, nu_pos, alpha_pos, beta_pos = compute_posterior_par(X)
-                return stats.norm.pdf(
-                    theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-                ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
+            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
             i = 0
             for theta in thetas:
                 X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
-                lambda_array[i] = -posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X)
                 i += 1
 
-        return lambda_array
+        return thetas, lambda_array
 
     def FBST_sim_lambda(self, theta, B, N, MC_samples=10**4):
         # testing kind of model
@@ -472,18 +237,10 @@ class Simulations:
 
         # first model: normal 1d. In this case, the MLE is given by the sample mean
         if self.kind_model == "1d_normal":
-            # function to compute posterior parameters for 1d normal
-            def compute_posterior_par(X):
-                sigma = 0.25
-                n = X.shape[0]
-                mu_value = (1 / ((1 / sigma) + n)) * (np.sum(X))
-                sigma_value = ((1 / sigma) + n) ** (-1)
-                return mu_value, sigma_value
-
             # obtaining evidence using monte carlo integration from posterior samples
             for i in range(0, B):
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                mu_pos, sigma_pos = compute_posterior_par(theta, X)
+                mu_pos, sigma_pos = self.compute_posterior_par(X)
 
                 # posterior samples
                 theta_sample = self.rng.normal(
@@ -501,81 +258,29 @@ class Simulations:
 
         elif self.kind_model == "gmm":
             # function to compute posterior parameters for gmm
-            def compute_posterior_par(X):
-                n = X.shape[0]
-                mu_value = (n / (n + 4)) * (np.mean(X))
-                sigma_value = 1 / (n + 4)
-                return mu_value, sigma_value
-
-            def posterior_pdf(theta, mu_value, sigma_value):
-                # prob from X
-                p_theta = (
-                    0.5
-                    * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
-                ) + (
-                    0.5
-                    * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value))
-                )
-                return p_theta
-
-            def posterior_sim(B, mu_value, sigma_value):
-                group = self.rng.binomial(n=1, p=0.5, size=B)
-                thetas = (
-                    (group == 0)
-                    * (self.rng.normal(mu_value, np.sqrt(sigma_value), size=B))
-                ) + (
-                    (group == 1)
-                    * (self.rng.normal(-mu_value, np.sqrt(sigma_value), size=B))
-                )
-                return thetas
-
             for i in range(0, B):
                 # simulating sample
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-
-                # computing posterior parameters
-                mu_value, sigma_value = compute_posterior_par(X)
-
                 # simulating from posterior
-                theta_sample = posterior_sim(MC_samples, mu_value, sigma_value)
+                theta_sample = self.posterior_sim(MC_samples, X)
 
                 # posterior densities of theta_sample
-                theta_dens = posterior_pdf(theta_sample, mu_value, sigma_value)
+                theta_dens = self.posterior_pdf(theta_sample, X)
 
                 # density value at H0
-                f_h0 = posterior_pdf(theta, mu_value, sigma_value)
+                f_h0 = self.posterior_pdf(theta, X)
 
                 lambda_array[i] = np.mean(theta_dens > f_h0)
 
         elif self.kind_model == "lognormal":
-            # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
-            def compute_posterior_par(X):
-                nu, mu_0 = 2, 0
-                alpha, beta = 2, 2
-                n = X.shape[0]
-                mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
-                nu_pos = nu + n
-                alpha_pos = alpha + (n / 2)
-                beta_pos = (
-                    beta
-                    + (1 / 2 * n * np.var(X))
-                    + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
-                )
-                return mu_pos, nu_pos, alpha_pos, beta_pos
-
-            def posterior_pdf(theta, mu_pos, nu_pos, alpha_pos, beta_pos):
-                return stats.norm.pdf(
-                    theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-                ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
-
             for i in range(0, B):
                 X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
 
-                mu_pos, nu_pos, alpha_pos, beta_pos = compute_posterior_par(X)
+                mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
 
                 # posterior samples
                 sigmas = 1 / self.rng.gamma(
@@ -600,6 +305,7 @@ class Simulations:
         return lambda_array
 
     def FBST_sample(self, B, N, MC_samples=10**4):
+
         # testing kind of model
         lambda_array = np.zeros(B)
         # first model: normal 1d. In this case, the MLE is given by the sample mean
@@ -607,19 +313,11 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(-5, 5, size=B)
 
-            # function to compute posterior parameters for 1d normal
-            def compute_posterior_par(X):
-                sigma = 0.25
-                n = X.shape[0]
-                mu_value = (1 / ((1 / sigma) + n)) * (np.sum(X))
-                sigma_value = ((1 / sigma) + n) ** (-1)
-                return mu_value, sigma_value
-
             # obtaining evidence using monte carlo integration from posterior samples
             i = 0
             for theta in thetas:
                 X = self.rng.normal(loc=theta, scale=1, size=N)
-                mu_pos, sigma_pos = compute_posterior_par(X)
+                mu_pos, sigma_pos = self.compute_posterior_par(X)
 
                 # posterior samples
                 theta_sample = self.rng.normal(
@@ -640,35 +338,6 @@ class Simulations:
         elif self.kind_model == "gmm":
             thetas = self.rng.uniform(0, 5, size=B)
 
-            # function to compute posterior parameters for gmm
-            def compute_posterior_par(X):
-                n = X.shape[0]
-                mu_value = (n / (n + 4)) * (np.mean(X))
-                sigma_value = 1 / (n + 4)
-                return mu_value, sigma_value
-
-            def posterior_pdf(theta, mu_value, sigma_value):
-                # prob from X
-                p_theta = (
-                    0.5
-                    * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
-                ) + (
-                    0.5
-                    * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value))
-                )
-                return p_theta
-
-            def posterior_sim(B, mu_value, sigma_value):
-                group = self.rng.binomial(n=1, p=0.5, size=B)
-                thetas = (
-                    (group == 0)
-                    * (self.rng.normal(mu_value, np.sqrt(sigma_value), size=B))
-                ) + (
-                    (group == 1)
-                    * (self.rng.normal(-mu_value, np.sqrt(sigma_value), size=B))
-                )
-                return thetas
-
             i = 0
             for theta in thetas:
                 # simulating sample
@@ -677,17 +346,14 @@ class Simulations:
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
 
-                # computing posterior parameters
-                mu_value, sigma_value = compute_posterior_par(X)
-
                 # simulating from posterior
-                theta_sample = posterior_sim(MC_samples, mu_value, sigma_value)
+                theta_sample = self.posterior_sim(MC_samples, X)
 
                 # posterior densities of theta_sample
-                theta_dens = posterior_pdf(theta_sample, mu_value, sigma_value)
+                theta_dens = self.posterior_pdf(theta_sample, X)
 
                 # density value at H0
-                f_h0 = posterior_pdf(theta, mu_value, sigma_value)
+                f_h0 = self.posterior_pdf(theta, X)
 
                 lambda_array[i] = np.mean(theta_dens > f_h0)
                 i += 1
@@ -695,29 +361,13 @@ class Simulations:
         elif self.kind_model == "lognormal":
             # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
-            thetas = np.c_[
-                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.25, 6.25, B)
-            ]
-
-            def compute_posterior_par(X):
-                nu, mu_0 = 2, 0
-                alpha, beta = 2, 2
-                n = X.shape[0]
-                mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
-                nu_pos = nu + n
-                alpha_pos = alpha + (n / 2)
-                beta_pos = (
-                    beta
-                    + (1 / 2 * n * np.var(X))
-                    + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
-                )
-                return mu_pos, nu_pos, alpha_pos, beta_pos
+            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
             i = 0
             for theta in thetas:
                 X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
 
-                mu_pos, nu_pos, alpha_pos, beta_pos = compute_posterior_par(X)
+                mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
 
                 # posterior samples
                 sigmas = 1 / self.rng.gamma(
@@ -740,24 +390,140 @@ class Simulations:
                 lambda_array[i] = np.mean(theta_dens > f_h0)
                 i += 1
 
-        return lambda_array
+        return thetas, lambda_array
+
+    # auxiliary functions to compute posterior and so on
+    def compute_lrt_statistic(self, theta_0, X, lower=0, upper=5):
+        if self.kind_model == "1d_normal":
+            mle_theta = np.mean(X)
+            lrt_stat = -2 * (
+                np.log(stats.norm.pdf(X, loc=theta_0, scale=1))
+                - np.log(stats.norm.pdf(X, loc=mle_theta, scale=1))
+            )
+        elif self.kind_model == "gmm":
+
+            def l_func(theta, x):
+                # prob from X
+                p_x = np.log(
+                    (0.5 * stats.norm.pdf(x, loc=theta, scale=1))
+                    + (0.5 * stats.norm.pdf(x, loc=-theta, scale=1))
+                )
+                return -(np.sum(p_x))
+
+            # computing MLE by grid
+            res = minimize_scalar(
+                l_func,
+                args=(X),
+                bounds=(lower, upper),
+                tol=0.01,
+                options={"maxiter": 100},
+            )
+            mle_theta = res.x
+            lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
+        elif self.kind_model == "lognormal":
+            mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
+            lrt_stat = -2 * (
+                np.log(stats.lognorm.pdf(X, loc=theta_0[0], s=theta_0[1]))
+                - np.log(stats.norm.pdf(X, loc=mle_mu, s=mle_sigma))
+            )
+            return lrt_stat
+
+        return lrt_stat
+
+    def compute_ks_statistic(self, theta_0, X):
+        if self.kind_model == "1d_normal":
+            empirical = stats.ecdf(X)
+            theoretical = np.sort(stats.norm.cdf(X, loc=theta_0, scale=1))
+            ks_stat = np.sqrt(X.shape[0]) * np.max(
+                np.abs(theoretical - empirical.cdf.probabilities)
+            )
+
+        elif self.kind_model == "gmm":
+            empirical = stats.ecdf(X)
+            theoretical = np.sort(
+                0.5 * stats.norm.cdf(X, loc=theta_0, scale=1)
+                + 0.5 * stats.norm.cdf(X, loc=-theta_0, scale=1)
+            )
+            ks_stat = np.sqrt(X.shape[0]) * np.max(
+                np.abs(theoretical - empirical.cdf.probabilities)
+            )
+
+        elif self.kind_model == "lognormal":
+            empirical = stats.ecdf(X)
+            theoretical = np.sort(stats.lognorm.cdf(X, s=theta_0[1], loc=theta_0[0]))
+            ks_stat = np.sqrt(X.shape[0]) * np.max(
+                np.abs(theoretical - empirical.cdf.probabilities)
+            )
+
+        return ks_stat
+
+    def compute_posterior_par(self, X):
+        if self.kind_model == "1d_normal":
+            sigma = 0.25
+            n = X.shape[0]
+            mu_value = (1 / ((1 / sigma) + n)) * (np.sum(X))
+            sigma_value = ((1 / sigma) + n) ** (-1)
+            return mu_value, sigma_value
+
+        elif self.kind_model == "gmm":
+            n = X.shape[0]
+            mu_value = (n / (n + 4)) * (np.mean(X))
+            sigma_value = 1 / (n + 4)
+            return mu_value, sigma_value
+
+        elif self.kind_model == "lognormal":
+            nu, mu_0 = 2, 0
+            alpha, beta = 2, 2
+            n = X.shape[0]
+            mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
+            nu_pos = nu + n
+            alpha_pos = alpha + (n / 2)
+            beta_pos = (
+                beta
+                + (1 / 2 * n * np.var(X))
+                + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
+            )
+            return mu_pos, nu_pos, alpha_pos, beta_pos
+
+    def posterior_pdf(self, theta, X):
+        if self.kind_model == "gmm":
+            mu_value, sigma_value = self.compute_posterior_par(X)
+            # prob from X
+            p_theta = (
+                0.5 * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
+            ) + (0.5 * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value)))
+            return p_theta
+        elif self.kind_model == "lognormal":
+            mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
+            p_theta = stats.norm.pdf(
+                theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
+            ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
+            return p_theta
+
+    def posterior_sim(self, B, X):
+        mu_value, sigma_value = self.compute_posterior_par(X)
+        group = self.rng.binomial(n=1, p=0.5, size=B)
+        thetas = (
+            (group == 0) * (self.rng.normal(mu_value, np.sqrt(sigma_value), size=B))
+        ) + ((group == 1) * (self.rng.normal(-mu_value, np.sqrt(sigma_value), size=B)))
+        return thetas
 
 
 # implementing also the naive approach to fit each case:
-def naive(stat, kind_model, alpha, rng, B=1000, N=100, seed=250, naive_n=500):
+def naive(stat, kind_model, alpha, rng, B=1000, N=100, naive_n=500):
     n_grid = int(B / naive_n)
     sim_obj = Simulations(rng=rng, kind_model=kind_model)
     sim_lambda = getattr(sim_obj, stat + "_sim_lambda")
     quantiles = {}
 
     if kind_model == "1d_normal":
-        thetas = np.linspace(-5, 5, n_grid)
+        thetas = np.linspace(-4.9999, 4.9999, n_grid)
         for theta in thetas:
             lambdas = sim_lambda(B=naive_n, N=N, theta=theta)
             quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
 
     elif kind_model == "gmm":
-        thetas = np.linspace(0, 5, n_grid)
+        thetas = np.linspace(0.0001, 4.9999, n_grid)
         for theta in thetas:
             lambdas = sim_lambda(B=naive_n, N=N, theta=theta)
             quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
@@ -765,7 +531,7 @@ def naive(stat, kind_model, alpha, rng, B=1000, N=100, seed=250, naive_n=500):
     elif kind_model == "lognormal":
         n_grid = round(np.sqrt(B / naive_n))
         a_s = np.linspace(-2.4999, 2.4999, n_grid)
-        b_s = np.linspace(0.25001, 2.4999, n_grid)
+        b_s = np.linspace(0.1501, 0.9999, n_grid)
         for mu, sigma in itertools.product(a_s, b_s):
             theta = np.array([mu, sigma])
             lambdas = sim_lambda(B=naive_n, N=N, theta=theta)
