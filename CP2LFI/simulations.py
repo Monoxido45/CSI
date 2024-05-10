@@ -423,8 +423,8 @@ class Simulations:
         elif self.kind_model == "lognormal":
             mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
             lrt_stat = -2 * (
-                np.log(stats.lognorm.pdf(X, loc=theta_0[0], s=theta_0[1]))
-                - np.log(stats.norm.pdf(X, loc=mle_mu, s=mle_sigma))
+                np.log(stats.lognorm.pdf(X, scale=np.exp(theta_0[0]), s=theta_0[1]))
+                - np.log(stats.lognorm.pdf(X, scale=np.exp(mle_mu), s=mle_sigma))
             )
             return lrt_stat
 
@@ -450,7 +450,9 @@ class Simulations:
 
         elif self.kind_model == "lognormal":
             empirical = stats.ecdf(X)
-            theoretical = np.sort(stats.lognorm.cdf(X, s=theta_0[1], loc=theta_0[0]))
+            theoretical = np.sort(
+                stats.lognorm.cdf(X, s=theta_0[1], scale=np.exp(theta_0[0]))
+            )
             ks_stat = np.sqrt(X.shape[0]) * np.max(
                 np.abs(theoretical - empirical.cdf.probabilities)
             )
@@ -475,13 +477,13 @@ class Simulations:
             nu, mu_0 = 2, 0
             alpha, beta = 2, 2
             n = X.shape[0]
-            mu_pos = ((nu * mu_0) + (n * np.mean(X))) / (nu + n)
+            mu_pos = ((nu * mu_0) + (n * np.mean(np.log(X)))) / (nu + n)
             nu_pos = nu + n
             alpha_pos = alpha + (n / 2)
             beta_pos = (
                 beta
                 + (1 / 2 * n * np.var(X))
-                + (((n * nu) / (nu + n)) * ((np.mean(X) - mu_0) ** 2 / 2))
+                + (((n * nu) / (nu + n)) * ((np.mean(np.log(X)) - mu_0) ** 2 / 2))
             )
             return mu_pos, nu_pos, alpha_pos, beta_pos
 
