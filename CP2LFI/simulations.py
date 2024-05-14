@@ -42,20 +42,19 @@ class Simulations:
         elif self.kind_model == "lognormal":
             # function to compute LRT for 1d normal
             for i in range(0, B):
-                X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
                 lambda_array[i] = self.compute_lrt_statistic(theta, X)
         return lambda_array
 
     def LRT_sample(self, B, N):
         # testing kind of model
         lambda_array = np.zeros(B)
-
+        i = 0
         # first model: normal 1d. In this case, the MLE is given by the sample mean
         if self.kind_model == "1d_normal":
             # sampling theta
             thetas = self.rng.uniform(-5, 5, size=B)
 
-            i = 0
             for theta in thetas:
                 X = self.rng.normal(theta, 1, N)
                 lambda_array[i] = self.compute_lrt_statistic(theta, X)
@@ -79,7 +78,7 @@ class Simulations:
             thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
             for theta in thetas:
-                X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
                 lambda_array[i] = self.compute_lrt_statistic(theta, X)
                 i += 1
         return thetas, lambda_array
@@ -110,11 +109,11 @@ class Simulations:
         elif self.kind_model == "lognormal":
             # function to compute KS statistic for lognormal
             for i in range(0, B):
-                X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
                 lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
-        return thetas, lambda_array
+        return lambda_array
 
     def KS_sample(self, B, N):
         # testing kind of model
@@ -136,6 +135,7 @@ class Simulations:
             # sampling theta
             thetas = self.rng.uniform(0, 5, size=B)
 
+            i = 0
             for theta in thetas:
                 group = self.rng.binomial(n=1, p=0.5, size=N)
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
@@ -148,12 +148,13 @@ class Simulations:
         elif self.kind_model == "lognormal":
             thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
 
+            i = 0
             for theta in thetas:
-                X = self.rng.lognormal(mu=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
                 lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
-        return lambda_array
+        return thetas, lambda_array
 
     def BFF_sim_lambda(self, theta, B, N):
         # testing kind of model
@@ -408,6 +409,7 @@ class Simulations:
                 np.log(stats.norm.pdf(X, loc=theta_0, scale=1))
                 - np.log(stats.norm.pdf(X, loc=mle_theta, scale=1))
             )
+            print(lrt_stat)
         elif self.kind_model == "gmm":
 
             def l_func(theta, x):
