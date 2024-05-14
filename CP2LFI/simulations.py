@@ -176,13 +176,13 @@ class Simulations:
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = -self.posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X, BF=True)
 
         elif self.kind_model == "lognormal":
             # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
             for i in range(0, B):
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = -self.posterior_pdf(theta, X)
 
         return lambda_array
@@ -215,23 +215,25 @@ class Simulations:
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
-                lambda_array[i] = -self.posterior_pdf(theta, X)
+                lambda_array[i] = -self.posterior_pdf(theta, X, BF=True)
                 i += 1
 
         elif self.kind_model == "lognormal":
             # function to compute posterior parameters for lognormal
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
-            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
+            thetas = np.c_[
+                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1.25, B)
+            ]
 
             i = 0
             for theta in thetas:
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = -self.posterior_pdf(theta, X)
                 i += 1
 
         return thetas, lambda_array
 
-    def FBST_sim_lambda(self, theta, B, N, MC_samples=10**4):
+    def FBST_sim_lambda(self, theta, B, N, MC_samples=10**3):
         # testing kind of model
         lambda_array = np.zeros(B)
 
@@ -246,6 +248,7 @@ class Simulations:
                 theta_sample = self.rng.normal(
                     loc=mu_pos, scale=np.sqrt(sigma_pos), size=MC_samples
                 )
+
                 # posterior densities of theta_sample
                 theta_dens = stats.norm.pdf(
                     theta_sample, loc=mu_pos, scale=np.sqrt(sigma_pos)
@@ -264,21 +267,22 @@ class Simulations:
                 X = ((group == 0) * (self.rng.normal(theta, 1, size=N))) + (
                     (group == 1) * (self.rng.normal(-theta, 1, size=N))
                 )
+
                 # simulating from posterior
                 theta_sample = self.posterior_sim(MC_samples, X)
 
                 # posterior densities of theta_sample
-                theta_dens = self.posterior_pdf(theta_sample, X)
+                theta_dens = self.posterior_pdf(theta_sample, X, BF=False)
 
                 # density value at H0
-                f_h0 = self.posterior_pdf(theta, X)
+                f_h0 = self.posterior_pdf(theta, X, BF=False)
 
                 lambda_array[i] = np.mean(theta_dens > f_h0)
 
         elif self.kind_model == "lognormal":
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
             for i in range(0, B):
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
 
                 mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
 
@@ -291,14 +295,16 @@ class Simulations:
                 )
 
                 # posterior densities
-                theta_dens = stats.norm.pdf(
-                    mus, loc=mu_pos, scale=np.sqrt(sigmas / nu_pos)
-                ) * stats.invgamma.pdf(sigmas, a=alpha_pos, scale=beta_pos)
+                theta_dens = np.log(
+                    stats.norm.pdf(mus, loc=mu_pos, scale=np.sqrt(sigmas / nu_pos))
+                ) + np.log(stats.invgamma.pdf(sigmas, a=alpha_pos, scale=beta_pos))
 
                 # density value at H0
-                f_h0 = stats.norm.pdf(
-                    theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-                ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
+                f_h0 = np.log(
+                    stats.norm.pdf(
+                        theta[0], loc=mu_pos, scale=np.sqrt(theta[1] / nu_pos)
+                    )
+                ) + np.log(stats.invgamma.pdf(theta[1], a=alpha_pos, scale=beta_pos))
 
                 lambda_array[i] = np.mean(theta_dens > f_h0)
 
@@ -365,7 +371,7 @@ class Simulations:
 
             i = 0
             for theta in thetas:
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
 
                 mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
 
@@ -378,14 +384,16 @@ class Simulations:
                 )
 
                 # posterior densities
-                theta_dens = stats.norm.pdf(
-                    mus, loc=mu_pos, scale=np.sqrt(sigmas / nu_pos)
-                ) * stats.invgamma.pdf(sigmas, a=alpha_pos, scale=beta_pos)
+                theta_dens = np.log(
+                    stats.norm.pdf(mus, loc=mu_pos, scale=np.sqrt(sigmas / nu_pos))
+                ) + np.log(stats.invgamma.pdf(sigmas, a=alpha_pos, scale=beta_pos))
 
                 # density value at H0
-                f_h0 = stats.norm.pdf(
-                    theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-                ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
+                f_h0 = np.log(
+                    stats.norm.pdf(
+                        theta[0], loc=mu_pos, scale=np.sqrt(theta[1] / nu_pos)
+                    )
+                ) + np.log(stats.invgamma.pdf(theta[1], a=alpha_pos, scale=beta_pos))
 
                 lambda_array[i] = np.mean(theta_dens > f_h0)
                 i += 1
@@ -467,47 +475,114 @@ class Simulations:
             sigma_value = ((1 / sigma) + n) ** (-1)
             return mu_value, sigma_value
 
-        elif self.kind_model == "gmm":
-            n = X.shape[0]
-            mu_value = (n / (n + 4)) * (np.mean(X))
-            sigma_value = 1 / (n + 4)
-            return mu_value, sigma_value
-
         elif self.kind_model == "lognormal":
             nu, mu_0 = 2, 0
-            alpha, beta = 2, 2
+            alpha, beta = 2, 4
             n = X.shape[0]
             mu_pos = ((nu * mu_0) + (n * np.mean(np.log(X)))) / (nu + n)
             nu_pos = nu + n
             alpha_pos = alpha + (n / 2)
             beta_pos = (
                 beta
-                + (1 / 2 * n * np.var(X))
+                + (1 / 2 * n * np.var(np.log(X)))
                 + (((n * nu) / (nu + n)) * ((np.mean(np.log(X)) - mu_0) ** 2 / 2))
             )
             return mu_pos, nu_pos, alpha_pos, beta_pos
 
-    def posterior_pdf(self, theta, X):
+    def posterior_pdf(self, theta, X, MC_samples=10**3, BF=False):
         if self.kind_model == "gmm":
-            mu_value, sigma_value = self.compute_posterior_par(X)
-            # prob from X
-            p_theta = (
-                0.5 * stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
-            ) + (0.5 * stats.norm.pdf(theta, loc=-mu_value, scale=np.sqrt(sigma_value)))
-            return p_theta
+            # computing p_x only for BF
+            if BF:
+                l_X_theta = np.log(
+                    (0.5 * stats.norm.pdf(X, loc=theta))
+                    + (0.5 * stats.norm.pdf(X, loc=-theta))
+                )
+
+                thetas_sim = self.rng.normal(loc=0.25, scale=1, size=MC_samples)
+                p_X = (
+                    0.5
+                    * stats.norm.pdf(
+                        np.tile(X, (MC_samples, 1)),
+                        loc=np.repeat(thetas_sim, X.shape[0]).reshape(
+                            MC_samples, X.shape[0]
+                        ),
+                    )
+                ) + (
+                    0.5
+                    * stats.norm.pdf(
+                        np.tile(X, (MC_samples, 1)),
+                        loc=np.repeat(-thetas_sim, X.shape[0]).reshape(
+                            MC_samples, X.shape[0]
+                        ),
+                    )
+                )
+
+                p_X = np.mean(np.prod(p_X, axis=1))
+
+                p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                    l_X_theta
+                )
+                p_theta_x = p_theta - np.log(p_X)
+
+                return p_theta_x
+            else:
+                if isinstance(theta, float):
+                    l_X_theta = np.log(
+                        (0.5 * stats.norm.pdf(X, loc=theta))
+                        + (0.5 * stats.norm.pdf(X, loc=-theta))
+                    )
+
+                    p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                        l_X_theta
+                    )
+                else:
+                    l_X_theta = np.log(
+                        (
+                            0.5
+                            * stats.norm.pdf(
+                                np.tile(X, (theta.shape[0], 1)),
+                                loc=np.repeat(theta, X.shape[0]).reshape(
+                                    theta.shape[0], X.shape[0]
+                                ),
+                            )
+                        )
+                        + (
+                            0.5
+                            * stats.norm.pdf(
+                                np.tile(X, (theta.shape[0], 1)),
+                                loc=np.repeat(-theta, X.shape[0]).reshape(
+                                    theta.shape[0], X.shape[0]
+                                ),
+                            )
+                        )
+                    )
+
+                    p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                        l_X_theta, axis=1
+                    )
+
+                return p_theta
+
         elif self.kind_model == "lognormal":
             mu_pos, nu_pos, alpha_pos, beta_pos = self.compute_posterior_par(X)
-            p_theta = stats.norm.pdf(
-                theta[0], loc=mu_pos, scale=theta[1] / np.sqrt(nu_pos)
-            ) * stats.invgamma.pdf(theta[1] ** 2, a=alpha_pos, scale=beta_pos)
+            p_theta = np.log(
+                stats.norm.pdf(theta[0], loc=mu_pos, scale=np.sqrt(theta[1] / nu_pos))
+            ) + np.log(stats.invgamma.pdf(theta[1], a=alpha_pos, scale=beta_pos))
             return p_theta
 
     def posterior_sim(self, B, X):
-        mu_value, sigma_value = self.compute_posterior_par(X)
-        group = self.rng.binomial(n=1, p=0.5, size=B)
-        thetas = (
-            (group == 0) * (self.rng.normal(mu_value, np.sqrt(sigma_value), size=B))
-        ) + ((group == 1) * (self.rng.normal(-mu_value, np.sqrt(sigma_value), size=B)))
+        # generating Z from bernoulli
+        p_x = np.exp(-1 / 4 * (X - 0.25) ** 2) / (
+            np.exp(-1 / 4 * (X - 0.25) ** 2) + np.exp(-1 / 4 * (X + 0.25) ** 2)
+        )
+        z = self.rng.binomial(n=1, p=p_x, size=X.shape[0])
+        X_0, X_1 = np.sum((z == 0) * (X)), np.sum((z == 1) * X)
+
+        mu_value, sigma_value = (X_1 - X_0 + 0.25) / (X.shape[0] + 1), 1 / (
+            X.shape[0] + 1
+        )
+
+        thetas = self.rng.normal(mu_value, np.sqrt(sigma_value), size=B)
         return thetas
 
 
@@ -531,12 +606,12 @@ def naive(stat, kind_model, alpha, rng, B=1000, N=100, naive_n=500):
             quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
 
     elif kind_model == "lognormal":
-        n_grid = round(np.sqrt(B / naive_n))
+        n_grid = round(B / naive_n)
         a_s = np.linspace(-2.4999, 2.4999, n_grid)
-        b_s = np.linspace(0.1501, 0.9999, n_grid)
+        b_s = np.linspace(0.1501, 1.2499, n_grid)
         for mu, sigma in itertools.product(a_s, b_s):
             theta = np.array([mu, sigma])
-            lambdas = sim_lambda(B=naive_n, N=N, theta=theta)
+            lambdas = sim_lambda(B=int(np.sqrt(naive_n)), N=N, theta=theta)
             quantiles[(mu, sigma)] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
