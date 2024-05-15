@@ -262,45 +262,6 @@ class ConformalLoforest(BaseEstimator):
 
         return breiman_matrix
 
-    def check_k(self, breiman_matrix, K, min_samples, pct_cover):
-        percentage_coverage = np.mean(np.sum(breiman_matrix >= K, axis=1) > min_samples)
-        if percentage_coverage >= pct_cover:
-            return [True, percentage_coverage]
-        else:
-            return [False, percentage_coverage]
-
-    def tune_k(
-        self, breiman_matrix, K_init=80, min_samples=100, step=5, pct_cover=0.95
-    ):
-        K_trial = K_init
-        k_list = self.check_k(breiman_matrix, K_init, min_samples, pct_cover)
-        k_bool, percentage_coverage = k_list[0], k_list[1]
-
-        if k_bool:
-            while percentage_coverage >= pct_cover:
-                new_K = K_trial + step
-                k_list = self.check_k(breiman_matrix, new_K, min_samples, pct_cover)
-                if not k_list[0]:
-                    break
-                else:
-                    K_trial = new_K
-                    percentage_coverage = k_list[1]
-                percentage_coverage = np.mean(
-                    np.sum(breiman_matrix >= new_K, axis=1) > min_samples
-                )
-                K_trial = new_K
-        else:
-            while percentage_coverage < pct_cover:
-                new_K = K_trial - step
-                k_list = self.check_k(breiman_matrix, new_K, min_samples, pct_cover)
-                K_trial = new_K
-                if k_list[0]:
-                    break
-                else:
-                    percentage_coverage = k_list[1]
-
-        return K_trial
-
     def compute_cutoffs(self, X, K=None, breiman_mat=None):
         # if weighting is enabled
         if self.weighting:
@@ -375,15 +336,13 @@ def tune_loforest_LFI(
             theta_data, breiman_mat=breiman_mat, K=K
         )
 
-    # also compute for
-
     # computing loss through lambda_data
     err_data = np.zeros((lambda_data.shape[0], K_grid.shape[0]))
     i = 0
     for lambdas in lambda_data:
         j = 0
         for K in K_grid:
-            coverage = np.mean(lambdas <= cutoffs[K][j])
+            coverage = np.mean(lambdas <= cutoffs[K][i])
             err_data[i, j] = np.abs(coverage - (1 - loforest_model.alpha))
             j += 1
         i += 1

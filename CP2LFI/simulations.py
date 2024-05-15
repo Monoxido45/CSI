@@ -479,7 +479,7 @@ class Simulations:
 
         elif self.kind_model == "lognormal":
             nu, mu_0 = 2, 0
-            alpha, beta = 2, 4
+            alpha, beta = 2, 1
             n = X.shape[0]
             mu_pos = ((nu * mu_0) + (n * np.mean(np.log(X)))) / (nu + n)
             nu_pos = nu + n
