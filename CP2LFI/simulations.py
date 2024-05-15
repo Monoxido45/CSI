@@ -75,10 +75,10 @@ class Simulations:
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
-            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1, B)]
+            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1.25, B)]
 
             for theta in thetas:
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = self.compute_lrt_statistic(theta, X)
                 i += 1
         return thetas, lambda_array
@@ -406,10 +406,9 @@ class Simulations:
         if self.kind_model == "1d_normal":
             mle_theta = np.mean(X)
             lrt_stat = -2 * (
-                np.log(stats.norm.pdf(X, loc=theta_0, scale=1))
-                - np.log(stats.norm.pdf(X, loc=mle_theta, scale=1))
+                np.sum(np.log(stats.norm.pdf(X, loc=theta_0, scale=1)))
+                - np.sum(np.log(stats.norm.pdf(X, loc=mle_theta, scale=1)))
             )
-            print(lrt_stat)
         elif self.kind_model == "gmm":
 
             def l_func(theta, x):
@@ -433,8 +432,8 @@ class Simulations:
         elif self.kind_model == "lognormal":
             mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
             lrt_stat = -2 * (
-                np.log(stats.lognorm.pdf(X, scale=np.exp(theta_0[0]), s=theta_0[1]))
-                - np.log(stats.lognorm.pdf(X, scale=np.exp(mle_mu), s=mle_sigma))
+                np.sum(np.log(stats.lognorm.pdf(X, scale=np.exp(theta_0[0]), s=np.sqrt(theta_0[1]))))
+                - np.sum(np.log(stats.lognorm.pdf(X, scale=np.exp(mle_mu), s=mle_sigma)))
             )
             return lrt_stat
 
