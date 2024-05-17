@@ -42,7 +42,7 @@ class Simulations:
         elif self.kind_model == "lognormal":
             # function to compute LRT for 1d normal
             for i in range(0, B):
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = self.compute_lrt_statistic(theta, X)
         return lambda_array
 
@@ -75,7 +75,9 @@ class Simulations:
 
         # third model: lognormal distribution.
         elif self.kind_model == "lognormal":
-            thetas = np.c_[self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1.25, B)]
+            thetas = np.c_[
+                self.rng.uniform(-2.5, 2.5, B), self.rng.uniform(0.15, 1.25, B)
+            ]
 
             for theta in thetas:
                 X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
@@ -109,7 +111,7 @@ class Simulations:
         elif self.kind_model == "lognormal":
             # function to compute KS statistic for lognormal
             for i in range(0, B):
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
@@ -150,7 +152,7 @@ class Simulations:
 
             i = 0
             for theta in thetas:
-                X = self.rng.lognormal(mean=theta[0], sigma=theta[1], size=N)
+                X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
                 lambda_array[i] = self.compute_ks_statistic(theta, X)
                 i += 1
 
@@ -430,10 +432,20 @@ class Simulations:
             mle_theta = res.x
             lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
         elif self.kind_model == "lognormal":
-            mle_mu, mle_sigma = np.mean(X), np.sqrt(np.var(X))
+            mle_mu, mle_sigma = np.mean(np.log(X)), np.var(np.sqrt(X))
             lrt_stat = -2 * (
-                np.sum(np.log(stats.lognorm.pdf(X, scale=np.exp(theta_0[0]), s=np.sqrt(theta_0[1]))))
-                - np.sum(np.log(stats.lognorm.pdf(X, scale=np.exp(mle_mu), s=mle_sigma)))
+                np.sum(
+                    np.log(
+                        stats.lognorm.pdf(
+                            X, scale=np.exp(theta_0[0]), s=np.sqrt(theta_0[1])
+                        )
+                    )
+                )
+                - np.sum(
+                    np.log(
+                        stats.lognorm.pdf(X, scale=np.exp(mle_mu), s=np.sqrt(mle_sigma))
+                    )
+                )
             )
             return lrt_stat
 
@@ -460,7 +472,7 @@ class Simulations:
         elif self.kind_model == "lognormal":
             empirical = stats.ecdf(X)
             theoretical = np.sort(
-                stats.lognorm.cdf(X, s=theta_0[1], scale=np.exp(theta_0[0]))
+                stats.lognorm.cdf(X, s=np.sqrt(theta_0[1]), scale=np.exp(theta_0[0]))
             )
             ks_stat = np.sqrt(X.shape[0]) * np.max(
                 np.abs(theoretical - empirical.cdf.probabilities)
