@@ -260,7 +260,7 @@ class Simulations:
                 # density value at H0
                 f_h0 = stats.norm.pdf(theta, loc=mu_pos, scale=np.sqrt(sigma_pos))
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
 
         elif self.kind_model == "gmm":
             # function to compute posterior parameters for gmm
@@ -280,7 +280,7 @@ class Simulations:
                 # density value at H0
                 f_h0 = self.posterior_pdf(theta, X, BF=False)
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
 
         elif self.kind_model == "lognormal":
             # we consider: alpha = 2, beta = 2, mu_0 = 0, nu = 0.5
@@ -309,7 +309,7 @@ class Simulations:
                     )
                 ) + np.log(stats.invgamma.pdf(theta[1], a=alpha_pos, scale=beta_pos))
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
 
         return lambda_array
 
@@ -341,7 +341,7 @@ class Simulations:
                 # density value at H0
                 f_h0 = stats.norm.pdf(theta, loc=mu_pos, scale=np.sqrt(sigma_pos))
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
                 i += 1
 
         elif self.kind_model == "gmm":
@@ -364,7 +364,7 @@ class Simulations:
                 # density value at H0
                 f_h0 = self.posterior_pdf(theta, X)
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
                 i += 1
 
         elif self.kind_model == "lognormal":
@@ -398,7 +398,7 @@ class Simulations:
                     )
                 ) + np.log(stats.invgamma.pdf(theta[1], a=alpha_pos, scale=beta_pos))
 
-                lambda_array[i] = np.mean(theta_dens > f_h0)
+                lambda_array[i] = np.mean(theta_dens >= f_h0)
                 i += 1
 
         return thetas, lambda_array
