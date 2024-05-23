@@ -183,7 +183,7 @@ def compute_MAE_N(
     se_list = []
     rng_simulate_list = []
     rng_test_list = []
-    K_loforest = []
+    K_loforest_list = []
 
     rng = np.random.default_rng(seed)
     sim_obj = Simulations(rng=rng, kind_model=kind_model)
@@ -219,7 +219,7 @@ def compute_MAE_N(
                     rng_test_list.append(sim_rng_state)
 
                     # simulating lambdas for testing
-                    stat = sim_obj.LR_sim_lambda(theta=theta, B=n, N=N_fixed)
+                    stat = sim_obj.FBST_sim_lambda(theta=theta, B=n, N=N_fixed)
 
                     # comparing coverage of methods
                     locart_cover = np.mean(stat <= quantiles_dict["locart"][l])
@@ -267,7 +267,7 @@ def compute_MAE_N(
             )
             N_list.extend([N_fixed] * 6)
             B_list.extend([B_fixed] * 6)
-            K_loforest.extend(np.mean(np.array(K_list)))
+            K_loforest_list.extend(np.mean(np.array(K_list)))
 
             # obtaining MAE and standard error for each method
             stats_data = pd.DataFrame(
@@ -277,7 +277,7 @@ def compute_MAE_N(
                     "B": B_list,
                     "MAE": mae_list,
                     "se": se_list,
-                    "K_tuned": K_loforest,
+                    "K_tuned": K_loforest_list,
                 }
             )
             stats_data.to_csv(
@@ -335,7 +335,7 @@ if __name__ == "__main__":
         K=50,
         K_grid=np.concatenate((np.array([0]), np.arange(20, 95, 5))),
         B_valid=1000,
-        N_lambda=750,
+        N_lambda=500,
         naive_n=500,
     )
 
