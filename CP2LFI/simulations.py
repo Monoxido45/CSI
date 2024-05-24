@@ -432,7 +432,7 @@ class Simulations:
             mle_theta = res.x
             lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
         elif self.kind_model == "lognormal":
-            mle_mu, mle_sigma = np.mean(np.log(X)), np.var(np.sqrt(X))
+            mle_mu, mle_sigma = np.mean(np.log(X)), np.var(np.log(X))
             lrt_stat = -2 * (
                 np.sum(
                     np.log(
@@ -584,18 +584,20 @@ class Simulations:
             return p_theta
 
     def posterior_sim(self, B, X):
-        # generating Z from bernoulli
+        # for each simulation: simulate from Z, then simulate for theta
         p_x = np.exp(-1 / 4 * (X - 0.25) ** 2) / (
             np.exp(-1 / 4 * (X - 0.25) ** 2) + np.exp(-1 / 4 * (X + 0.25) ** 2)
         )
-        z = self.rng.binomial(n=1, p=p_x, size=X.shape[0])
-        X_0, X_1 = np.sum((z == 0) * (X)), np.sum((z == 1) * X)
+        z = self.rng.binomial(n=1, p=np.tile(p_x, (B, 1)), size=(B, X.shape[0]))
+        X_0, X_1 = np.sum((z == 0) * np.tile(X, (B, 1)), axis=1), np.sum(
+            (z == 1) * np.tile(X, (B, 1)), axis=1
+        )
 
         mu_value, sigma_value = (X_1 - X_0 + 0.25) / (X.shape[0] + 1), 1 / (
             X.shape[0] + 1
         )
 
-        thetas = self.rng.normal(mu_value, np.sqrt(sigma_value), size=B)
+        thetas = self.rng.normal(mu_value, np.repeat(np.sqrt(sigma_value), B), size=B)
         return thetas
 
 
