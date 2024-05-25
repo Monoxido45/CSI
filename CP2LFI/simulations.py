@@ -81,7 +81,7 @@ class Simulations:
 
             for theta in thetas:
                 X = self.rng.lognormal(mean=theta[0], sigma=np.sqrt(theta[1]), size=N)
-                lambda_array[i] = self.compute_lrt_statistic(theta, X)
+                lambda_array[i] = self.compute_lrt_statistic(theta_0=theta, X=X)
                 i += 1
         return thetas, lambda_array
 
@@ -359,10 +359,10 @@ class Simulations:
                 theta_sample = self.posterior_sim(MC_samples, X)
 
                 # posterior densities of theta_sample
-                theta_dens = self.posterior_pdf(theta_sample, X)
+                theta_dens = self.posterior_pdf(theta_sample, X, BF=False)
 
                 # density value at H0
-                f_h0 = self.posterior_pdf(theta, X)
+                f_h0 = self.posterior_pdf(theta, X, BF=False)
 
                 lambda_array[i] = np.mean(theta_dens >= f_h0)
                 i += 1
@@ -511,7 +511,7 @@ class Simulations:
                     + (0.5 * stats.norm.pdf(X, loc=-theta))
                 )
 
-                thetas_sim = self.rng.normal(loc=0.25, scale=1, size=MC_samples)
+                thetas_sim = self.rng.normal(loc=1, scale=1, size=MC_samples)
                 p_X = (
                     0.5
                     * stats.norm.pdf(
@@ -532,7 +532,7 @@ class Simulations:
 
                 p_X = np.mean(np.prod(p_X, axis=1))
 
-                p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                p_theta = np.log(stats.norm.pdf(theta, loc=1, scale=1)) + np.sum(
                     l_X_theta
                 )
                 p_theta_x = p_theta - np.log(p_X)
@@ -545,7 +545,7 @@ class Simulations:
                         + (0.5 * stats.norm.pdf(X, loc=-theta))
                     )
 
-                    p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                    p_theta = np.log(stats.norm.pdf(theta, loc=1, scale=1)) + np.sum(
                         l_X_theta
                     )
                 else:
@@ -570,7 +570,7 @@ class Simulations:
                         )
                     )
 
-                    p_theta = np.log(stats.norm.pdf(theta, loc=0.25, scale=1)) + np.sum(
+                    p_theta = np.log(stats.norm.pdf(theta, loc=1, scale=1)) + np.sum(
                         l_X_theta, axis=1
                     )
 
@@ -585,17 +585,16 @@ class Simulations:
 
     def posterior_sim(self, B, X):
         # for each simulation: simulate from Z, then simulate for theta
-        p_x = np.exp(-1 / 4 * (X - 0.25) ** 2) / (
-            np.exp(-1 / 4 * (X - 0.25) ** 2) + np.exp(-1 / 4 * (X + 0.25) ** 2)
+        p_x = np.exp(-1 / 4 * (X - 1) ** 2) / (
+            np.exp(-1 / 4 * (X - 1) ** 2) + np.exp(-1 / 4 * (X + 1) ** 2)
         )
+
         z = self.rng.binomial(n=1, p=np.tile(p_x, (B, 1)), size=(B, X.shape[0]))
         X_0, X_1 = np.sum((z == 0) * np.tile(X, (B, 1)), axis=1), np.sum(
             (z == 1) * np.tile(X, (B, 1)), axis=1
         )
 
-        mu_value, sigma_value = (X_1 - X_0 + 0.25) / (X.shape[0] + 1), 1 / (
-            X.shape[0] + 1
-        )
+        mu_value, sigma_value = (X_1 - X_0 + 1) / (X.shape[0] + 1), 1 / (X.shape[0] + 1)
 
         thetas = self.rng.normal(mu_value, np.repeat(np.sqrt(sigma_value), B), size=B)
         return thetas
