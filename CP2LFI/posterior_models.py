@@ -36,9 +36,6 @@ class normflow_posterior(BaseEstimator):
         enable_cuda=True,
     ):
         self.enable_cuda = enable_cuda
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() and self.enable_cuda else "cpu"
-        )
         self.latent_size = latent_size
         self.sample_size = sample_size
         self.n_flows = n_flows
@@ -52,7 +49,9 @@ class normflow_posterior(BaseEstimator):
         context_size,
         **kwargs,
     ):
-
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() and self.enable_cuda else "cpu"
+        )
         flows = []
         for i in range(self.n_flows):
             flows += [
@@ -241,7 +240,7 @@ class normflow_posterior(BaseEstimator):
         prob[torch.isnan(prob)] = 0
         return prob.detach().numpy()
 
-    def sample(self, X, num_samples):
+    def sample(self, X, num_samples, random_state=125):
         """
         Sample from the posterior probability for theta given X
 
@@ -255,7 +254,8 @@ class normflow_posterior(BaseEstimator):
         prob_pred : array-like, shape (n_samples,)
             The predicted target values.
         """
-        if X.shape[0] == 1:
+        torch.manual_seed(random_state)
+        if X.ndim == 1:
             X_s = np.tile(X, (num_samples, 1))
             # converting to torch tensor
             X_s = torch.tensor(X_s, dtype=torch.float32).to(self.device)
@@ -263,7 +263,6 @@ class normflow_posterior(BaseEstimator):
             X_s = torch.tensor(X, dtype=torch.float32).to(self.device)
 
         with torch.no_grad():
-            sample, _ = self.model.sample(context=X_s, num_samples=num_samples).to(
-                "cpu"
-            )
-        return sample.numpy()
+            sample, _ = self.model.sample(context=X_s, num_samples=num_samples)
+
+        return sample.to("cpu").numpy()
