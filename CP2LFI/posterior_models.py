@@ -29,10 +29,11 @@ class normflow_posterior(BaseEstimator):
         self,
         latent_size,
         sample_size,
-        n_flows=4,
-        hidden_units=64,
+        n_flows=8,
+        hidden_units=128,
         hidden_layers=2,
-        permute_mask=True,
+        permute_mask=False,
+        dropout_prob=0.35,
         enable_cuda=True,
     ):
         self.enable_cuda = enable_cuda
@@ -43,6 +44,7 @@ class normflow_posterior(BaseEstimator):
         self.hidden_layers = hidden_layers
         self.permute_mask = permute_mask
         self.enable_cuda = enable_cuda
+        self.dropout_prob = dropout_prob
 
     def set_up_nflow(
         self,
@@ -61,13 +63,14 @@ class normflow_posterior(BaseEstimator):
                     self.hidden_units,
                     num_context_channels=context_size,
                     permute_mask=self.permute_mask,
+                    dropout_probability=self.dropout_prob,
                     **kwargs,
                 )
             ]
             flows += [nf.flows.LULinearPermute(self.latent_size)]
 
         # Set base distribution
-        q0 = nf.distributions.DiagGaussian(self.latent_size, trainable=False)
+        q0 = nf.distributions.DiagGaussian(self.latent_size, trainable=True)
 
         # Construct flow model
         model = nf.ConditionalNormalizingFlow(q0, flows)
