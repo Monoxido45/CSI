@@ -70,7 +70,7 @@ class normflow_posterior(BaseEstimator):
             flows += [nf.flows.LULinearPermute(self.latent_size)]
 
         # Set base distribution
-        q0 = nf.distributions.DiagGaussian(self.latent_size, trainable=True)
+        q0 = nf.distributions.DiagGaussian(self.latent_size, trainable=False)
 
         # Construct flow model
         model = nf.ConditionalNormalizingFlow(q0, flows)
@@ -89,6 +89,7 @@ class normflow_posterior(BaseEstimator):
         batch_size=200,
         learning_rate=3e-4,
         weight_decay=1e-5,
+        fix_seed=False,
         torch_seed=45,
         split_seed=0,
         **kwargs,
@@ -136,7 +137,9 @@ class normflow_posterior(BaseEstimator):
                 torch.tensor(theta_val, dtype=torch.float32).to(self.device),
             )
 
-        torch.manual_seed(torch_seed)
+        if fix_seed:
+            torch.manual_seed(torch_seed)
+            torch.cuda.manual_seed(torch_seed)
 
         # creating tensors datasets
         train_data = TensorDataset(x_train, theta_train)
@@ -243,7 +246,7 @@ class normflow_posterior(BaseEstimator):
         prob[torch.isnan(prob)] = 0
         return prob.detach().numpy()
 
-    def sample(self, X, num_samples, random_state=125):
+    def sample(self, X, num_samples, fix_seed=False, random_state=125):
         """
         Sample from the posterior probability for theta given X
 
@@ -257,7 +260,9 @@ class normflow_posterior(BaseEstimator):
         prob_pred : array-like, shape (n_samples,)
             The predicted target values.
         """
-        torch.manual_seed(random_state)
+        if fix_seed:
+            torch.manual_seed(random_state)
+            torch.cuda.manual_seed(random_state)
         if X.ndim == 1:
             X_s = np.tile(X, (num_samples, 1))
             # converting to torch tensor
