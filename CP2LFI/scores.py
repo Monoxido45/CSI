@@ -157,7 +157,7 @@ class WaldoScore(Scores):
                 var_theta_x = np.cov(s, rowvar=False)
 
                 # computing waldo statistic
-                if mean_theta_X.ndim > 1:
+                if mean_theta_X.ndim == 1:
                     lambdas[i] = (
                         (mean_theta_X - theta).transpose()
                         @ np.linalg.inv(var_theta_x)
@@ -175,7 +175,7 @@ class WaldoScore(Scores):
                 var_theta_x = np.cov(s, rowvar=False)
 
                 # computing waldo statistic
-                if mean_theta_X.ndim > 1:
+                if mean_theta_X.ndim == 1:
                     lambdas[i] = (
                         (mean_theta_X - theta).transpose()
                         @ np.linalg.inv(var_theta_x)
