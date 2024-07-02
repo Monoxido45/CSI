@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from sklearn.base import clone
+from tqdm import tqdm
 
 
 # defining score basic class
@@ -121,3 +122,165 @@ class RegressionScore(Scores):
         pred_mu = self.base_model.predict(X_test)
         pred = np.vstack((pred_mu - cutoff, pred_mu + cutoff)).T
         return pred
+
+
+# main LFI statistics scores
+# waldo score
+
+
+class WaldoScore(Scores):
+    def fit(self, X=None, thetas=None):
+        # setting up model for normalizing flows
+        if self.is_fitted:
+            return self
+        elif self.base_model is not None:
+            self.base_model.fit(X, thetas)
+        else:
+            return self
+
+    def compute(self, thetas, X, N=10**3, one_sample=False, disable_tqdm=False):
+        # simulating from each theta and dataset to compute waldo statistic
+        i = 0
+        lambdas = np.zeros(thetas.shape[0])
+
+        for theta in tqdm(
+            thetas,
+            desc="Computing waldo statistics using posterior model",
+            disable=disable_tqdm,
+        ):
+            if not one_sample:
+                # simulating from the model
+                s = self.base_model.sample(X=X[i, :], num_samples=N)
+
+                # computing E[theta|X]
+                mean_theta_X = np.mean(s, axis=0)
+                var_theta_x = np.cov(s, rowvar=False)
+
+                # computing waldo statistic
+                if mean_theta_X.ndim > 1:
+                    lambdas[i] = (
+                        (mean_theta_X - theta).transpose()
+                        @ np.linalg.inv(var_theta_x)
+                        @ (mean_theta_X - theta)
+                    )
+                else:
+                    lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
+                i += 1
+            else:
+                # simulating from the model
+                s = self.base_model.sample(X=X, num_samples=N)
+
+                # computing E[theta|X]
+                mean_theta_X = np.mean(s, axis=0)
+                var_theta_x = np.cov(s, rowvar=False)
+
+                # computing waldo statistic
+                if mean_theta_X.ndim > 1:
+                    lambdas[i] = (
+                        (mean_theta_X - theta).transpose()
+                        @ np.linalg.inv(var_theta_x)
+                        @ (mean_theta_X - theta)
+                    )
+                else:
+                    lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
+                i += 1
+
+        return lambdas
+
+    def predict(self, thetas_grid, X, cutoffs, theta_1d=True):
+        # predicting lambdas for all thetas
+        lambdas = self.compute(thetas_grid, X, one_sample=True)
+        idxs = list(np.where(lambdas <= cutoffs)[0])
+
+        if theta_1d:
+            return thetas_grid.squeeze()[idxs]
+        else:
+            return thetas_grid[idxs, :]
+
+
+# BFF score
+class BFFScore(Scores):
+    def fit(self, X=None, thetas=None):
+        # setting up model for normalizing flows
+        if self.is_fitted:
+            return self
+        elif self.base_model is not None:
+            self.base_model.fit(X, thetas)
+        else:
+            return self
+
+    def compute(self, thetas, X, one_sample=False, disable_tqdm=False):
+        # simulating from each theta and dataset to compute waldo statistic
+        # predicting posterior density for X and theta
+        if not one_sample:
+            return -self.base_model.predict(thetas, X)
+        else:
+            X_tile = np.tile(X, (thetas.shape[0], 1))
+            return -self.base_model.predict(thetas, X_tile)
+
+    def predict(self, thetas_grid, X, cutoffs, theta_1d=True):
+        # predicting lambdas for all thetas
+        lambdas = self.compute(thetas_grid, X, one_sample=True)
+        idxs = list(np.where(lambdas <= cutoffs)[0])
+
+        if theta_1d:
+            return thetas_grid.squeeze()[idxs]
+        else:
+            return thetas_grid[idxs, :]
+
+
+# E-value score
+class E_valueScore(Scores):
+    def fit(self, X=None, thetas=None):
+        # setting up model for normalizing flows
+        if self.is_fitted:
+            return self
+        elif self.base_model is not None:
+            self.base_model.fit(X, thetas)
+        else:
+            return self
+
+    def compute(self, thetas, X, N=10**3, one_sample=False, disable_tqdm=False):
+        # simulating from each theta and dataset to compute waldo statistic
+        i = 0
+        lambdas = np.zeros(thetas.shape[0])
+
+        for theta in tqdm(
+            thetas,
+            desc="Computing e-value statistics using posterior model",
+            disable=disable_tqdm,
+        ):
+            if not one_sample:
+                # simulating from the posterior for each X
+                s = self.base_model.sample(X=X[i, :], num_samples=N)
+
+                # computing probability for each sample
+                prob_s = self.base_model.predict(s, np.tile(X[i, :], (N, 1)))
+
+                # compute probability for theta
+                prob_theta = self.base_model.predict(theta, X[i, :].reshape(1, -1))
+            else:
+                # simulating from the posterior for each X
+                s = self.base_model.sample(X=X, num_samples=N)
+
+                # computing probability for each sample
+                prob_s = self.base_model.predict(s, np.tile(X, (N, 1)))
+
+                # compute probability for theta
+                prob_theta = self.base_model.predict(theta, X.reshape(1, -1))
+
+            # computing e-value
+            lambdas[i] = np.mean(prob_s >= prob_theta)
+            i += 1
+
+        return lambdas
+
+    def predict(self, thetas_grid, X, cutoffs, theta_1d=True):
+        # predicting lambdas for all thetas
+        lambdas = self.compute(thetas_grid, X, one_sample=True)
+        idxs = list(np.where(lambdas <= cutoffs)[0])
+
+        if theta_1d:
+            return thetas_grid.squeeze()[idxs]
+        else:
+            return thetas_grid[idxs, :]
