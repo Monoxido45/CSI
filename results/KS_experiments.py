@@ -268,7 +268,7 @@ def compute_MAE_N(
             )
             N_list.extend([N_fixed] * 6)
             B_list.extend([B_fixed] * 6)
-            K_loforest_list.extend(np.mean(np.array(K_list)))
+            K_loforest_list.extend([np.mean(np.array(K_list))] * 6)
 
             # obtaining MAE and standard error for each method
             stats_data = pd.DataFrame(
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     elif kind_model == "lognormal":
         n_out = 50
         a_s = np.linspace(-2.4999, 2.4999, n_out)
-        b_s = np.linspace(0.15001, 0.9999, n_out)
+        b_s = np.linspace(0.15001, 1.2499, n_out)
         thetas = np.c_[list(itertools.product(a_s, b_s))]
 
     start_time = time.time()
@@ -324,7 +324,7 @@ if __name__ == "__main__":
         kind_model=kind_model,
         thetas=thetas,
         B=np.array([1000, 5000, 10000, 15000]),
-        N=np.array([5, 10, 20, 50]),
+        N=np.array([5, 10, 20, 50, 100]),
         n_it=n_it,
         n=1000,
         min_samples_leaf=300,
