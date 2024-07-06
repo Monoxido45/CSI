@@ -49,6 +49,7 @@ class normflow_posterior(BaseEstimator):
     def set_up_nflow(
         self,
         context_size,
+        type="Quadratic Spline",
         **kwargs,
     ):
         self.device = torch.device(
@@ -56,18 +57,32 @@ class normflow_posterior(BaseEstimator):
         )
         flows = []
         for i in range(self.n_flows):
-            flows += [
-                nf.flows.AutoregressiveRationalQuadraticSpline(
-                    self.latent_size,
-                    self.hidden_layers,
-                    self.hidden_units,
-                    num_context_channels=context_size,
-                    permute_mask=self.permute_mask,
-                    dropout_probability=self.dropout_prob,
-                    **kwargs,
-                )
-            ]
-            flows += [nf.flows.LULinearPermute(self.latent_size)]
+            if type == "Quadratic Spline":
+                flows += [
+                    nf.flows.AutoregressiveRationalQuadraticSpline(
+                        self.latent_size,
+                        self.hidden_layers,
+                        self.hidden_units,
+                        num_context_channels=context_size,
+                        permute_mask=self.permute_mask,
+                        dropout_probability=self.dropout_prob,
+                        **kwargs,
+                    )
+                ]
+                flows += [nf.flows.LULinearPermute(self.latent_size)]
+            elif type == "Masked Autoregressive":
+                flows += [
+                    nf.flows.MaskedAffineAutoregressive(
+                        self.latent_size,
+                        self.hidden_units,
+                        context_features=context_size,
+                        num_blocks=self.hidden_layers,
+                        random_mask=self.permute_mask,
+                        dropout_probability=self.dropout_prob,
+                        **kwargs,
+                    )
+                ]
+                flows += [nf.flows.LULinearPermute(self.latent_size)]
 
         # Set base distribution
         q0 = nf.distributions.DiagGaussian(self.latent_size, trainable=False)
@@ -92,6 +107,7 @@ class normflow_posterior(BaseEstimator):
         fix_seed=False,
         torch_seed=45,
         split_seed=0,
+        type="Quadratic Spline",
         **kwargs,
     ):
         """
@@ -111,7 +127,7 @@ class normflow_posterior(BaseEstimator):
             Returns self.
         """
         # setting up model
-        self.model = self.set_up_nflow(context_size=X.shape[1], **kwargs)
+        self.model = self.set_up_nflow(context_size=X.shape[1], type=type, **kwargs)
 
         # splitting data
         x_train, x_val, theta_train, theta_val = train_test_split(
@@ -157,7 +173,7 @@ class normflow_posterior(BaseEstimator):
             self.model.parameters(), lr=learning_rate, weight_decay=weight_decay
         )
         best_loss = np.inf
-
+        counter = 0
         # starting neural network loop
         for it in tqdm(
             range(n_epochs), desc="Fitting normalizing flows posterior estimator"

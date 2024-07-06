@@ -244,6 +244,7 @@ class E_valueScore(Scores):
         # simulating from each theta and dataset to compute waldo statistic
         i = 0
         lambdas = np.zeros(thetas.shape[0])
+        theta_shape = thetas.shape[1]
 
         for theta in tqdm(
             thetas,
@@ -257,8 +258,11 @@ class E_valueScore(Scores):
                 # computing probability for each sample
                 prob_s = self.base_model.predict(s, np.tile(X[i, :], (N, 1)))
 
-                # compute probability for theta
-                prob_theta = self.base_model.predict(theta, X[i, :].reshape(1, -1))
+                 # compute probability for theta
+                if theta_shape > 1:
+                    prob_theta = self.base_model.predict(theta.reshape(1, -1), X[i, :].reshape(1, -1))
+                else:
+                    prob_theta = self.base_model.predict(theta, X[i, :].reshape(1, -1))
             else:
                 # simulating from the posterior for each X
                 s = self.base_model.sample(X=X, num_samples=N)
@@ -267,7 +271,10 @@ class E_valueScore(Scores):
                 prob_s = self.base_model.predict(s, np.tile(X, (N, 1)))
 
                 # compute probability for theta
-                prob_theta = self.base_model.predict(theta, X.reshape(1, -1))
+                if theta_shape > 1:
+                    prob_theta = self.base_model.predict(theta.reshape(1, -1), X.reshape(1, -1))
+                else:
+                    prob_theta = self.base_model.predict(theta, X.reshape(1, -1))
 
             # computing e-value
             lambdas[i] = np.mean(prob_s >= prob_theta)
