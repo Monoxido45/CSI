@@ -158,11 +158,14 @@ class WaldoScore(Scores):
 
                 # computing waldo statistic
                 if mean_theta_X.ndim == 1:
-                    lambdas[i] = (
-                        (mean_theta_X - theta).transpose()
-                        @ np.linalg.inv(var_theta_x)
-                        @ (mean_theta_X - theta)
-                    )
+                    if mean_theta_X.shape[0] > 1:
+                        lambdas[i] = (
+                            (mean_theta_X - theta).transpose()
+                            @ np.linalg.inv(var_theta_x)
+                            @ (mean_theta_X - theta)
+                        )
+                    else:
+                        lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
                 else:
                     lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
                 i += 1
@@ -176,11 +179,15 @@ class WaldoScore(Scores):
 
                 # computing waldo statistic
                 if mean_theta_X.ndim == 1:
-                    lambdas[i] = (
-                        (mean_theta_X - theta).transpose()
-                        @ np.linalg.inv(var_theta_x)
-                        @ (mean_theta_X - theta)
-                    )
+                    if mean_theta_X.shape[0] > 1:
+                        lambdas[i] = (
+                            (mean_theta_X - theta).transpose()
+                            @ np.linalg.inv(var_theta_x)
+                            @ (mean_theta_X - theta)
+                        )
+                    else:
+                        lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
+
                 else:
                     lambdas[i] = (mean_theta_X - theta) ** 2 / (var_theta_x)
                 i += 1
@@ -258,9 +265,11 @@ class E_valueScore(Scores):
                 # computing probability for each sample
                 prob_s = self.base_model.predict(s, np.tile(X[i, :], (N, 1)))
 
-                 # compute probability for theta
+                # compute probability for theta
                 if theta_shape > 1:
-                    prob_theta = self.base_model.predict(theta.reshape(1, -1), X[i, :].reshape(1, -1))
+                    prob_theta = self.base_model.predict(
+                        theta.reshape(1, -1), X[i, :].reshape(1, -1)
+                    )
                 else:
                     prob_theta = self.base_model.predict(theta, X[i, :].reshape(1, -1))
             else:
@@ -272,7 +281,9 @@ class E_valueScore(Scores):
 
                 # compute probability for theta
                 if theta_shape > 1:
-                    prob_theta = self.base_model.predict(theta.reshape(1, -1), X.reshape(1, -1))
+                    prob_theta = self.base_model.predict(
+                        theta.reshape(1, -1), X.reshape(1, -1)
+                    )
                 else:
                     prob_theta = self.base_model.predict(theta, X.reshape(1, -1))
 
