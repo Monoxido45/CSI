@@ -23,10 +23,6 @@ from tqdm import tqdm
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
 folder_path = "/results/LFI_objects/tune_data/"
-# waldo_score.base_model.device("cpu")
-# bff_score.base_model.device("cpu")
-# e_value_score.base_model.device("cpu")
-# waldo_score.base_model.model.device("cpu")
 
 
 def generate_tuning_matrix(
@@ -91,6 +87,11 @@ def generate_tuning_matrix(
     e_value_stat = pd.read_pickle(
         original_path + stats_path + f"{kind}_e_value_{n}.pickle"
     )
+
+    # waldo_score.base_model.device("cpu")
+    # bff_score.base_model.device("cpu")
+    # e_value_score.base_model.device("cpu")
+    # waldo_score.base_model.model.device("cpu")
 
     i = 0
     for theta in tqdm(theta_tune, desc="Simulating all tuning samples"):
