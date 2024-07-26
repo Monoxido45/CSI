@@ -118,7 +118,7 @@ n_list = [1, 5, 10, 20, 50]
 if __name__ == "__main__":
     print("We will now save all evaluation grid elements")
     kind = input("Which kind of simulator would like to use? ")
-    n_lambda = int(input("What is the size of each statistic vector from the grid? "))
+    n_lambda = int(input("What is the size of each statistic vector? "))
     print(f"Generating evaluation grid for the {kind} problem")
     for n in n_list:
         print("Fitting for n = {}".format(n))

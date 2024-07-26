@@ -14,6 +14,8 @@ from CP2LFI.utils import fit_post_model
 # functions to make simulator or prior
 from hypothesis.benchmark import sir, tractable, mg1, weinberg
 import sbibm
+
+# pip install sbibm
 import os
 from tqdm import tqdm
 
@@ -21,6 +23,10 @@ from tqdm import tqdm
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
 folder_path = "/results/LFI_objects/tune_data/"
+# waldo_score.base_model.device("cpu")
+# bff_score.base_model.device("cpu")
+# e_value_score.base_model.device("cpu")
+# waldo_score.base_model.model.device("cpu")
 
 
 def generate_tuning_matrix(
