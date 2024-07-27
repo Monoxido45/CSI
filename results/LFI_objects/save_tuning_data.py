@@ -18,11 +18,19 @@ import sbibm
 # pip install sbibm
 import os
 from tqdm import tqdm
+import io
 
 # general path
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
 folder_path = "/results/LFI_objects/tune_data/"
+
+
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else: return super().find_class(module, name)
 
 
 def generate_tuning_matrix(
@@ -78,21 +86,27 @@ def generate_tuning_matrix(
     )
 
     # importing waldo from pickle file
-    waldo_stat = pd.read_pickle(original_path + stats_path + f"{kind}_waldo_{n}.pickle")
+    #waldo_stat = pd.read_pickle(original_path + stats_path + f"{kind}_waldo_{n}.pickle")
+
+    with open(original_path + stats_path + f"{kind}_waldo_{n}.pickle", "rb") as f:
+        waldo_stat = CPU_Unpickler(f).load()
 
     # importing BFF from pickle file
-    bff_stat = pd.read_pickle(original_path + stats_path + f"{kind}_bff_{n}.pickle")
+    #bff_stat = pd.read_pickle(original_path + stats_path + f"{kind}_bff_{n}.pickle")
+    with open(original_path + stats_path + f"{kind}_bff_{n}.pickle", "rb") as f:
+        bff_stat = CPU_Unpickler(f).load()
 
-    # import e-value from pickle file
-    e_value_stat = pd.read_pickle(
-        original_path + stats_path + f"{kind}_e_value_{n}.pickle"
-    )
+    # # import e-value from pickle file
+    # e_value_stat = pd.read_pickle(
+    #     original_path + stats_path + f"{kind}_e_value_{n}.pickle"
+    # )
+    with open(original_path + stats_path + f"{kind}_e_value_{n}.pickle", "rb") as f:
+        e_value_stat = CPU_Unpickler(f).load()
 
-    # waldo_score.base_model.device("cpu")
-    # bff_score.base_model.device("cpu")
-    # e_value_score.base_model.device("cpu")
-    # waldo_score.base_model.model.device("cpu")
-
+    waldo_stat.base_model.device = torch.device("cpu")
+    bff_stat.base_model.device = torch.device("cpu")
+    e_value_stat.base_model.device = torch.device("cpu")
+    waldo_stat.base_model.model.device = torch.device("cpu")
     i = 0
     for theta in tqdm(theta_tune, desc="Simulating all tuning samples"):
         if theta_tune.ndim == 1:
@@ -149,7 +163,7 @@ def generate_tuning_matrix(
         )
 
 
-n_list = [1, 5, 10, 20, 50]
+n_list = [1]
 
 if __name__ == "__main__":
     print("We will now save all evaluation grid elements")
