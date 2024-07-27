@@ -29,6 +29,7 @@ def simulate_theta_grid_eval(
     n,
     n_lambda=500,
     log_transf=False,
+    completing=False,
 ):
     two_moons = False
 
@@ -54,7 +55,18 @@ def simulate_theta_grid_eval(
         simulator = task.get_simulator()
 
     # computing and saving dictionary for each statistic
-    waldo_dict, bff_dict, e_value_dict = {}, {}, {}
+    if completing:
+        waldo_dict = pd.read_pickle(
+            original_path + folder_path + f"{kind}_waldo_eval_{n}.pickle"
+        )
+        bff_dict = pd.read_pickle(
+            original_path + folder_path + f"{kind}_bff_eval_{n}.pickle"
+        )
+        e_value_dict = pd.read_pickle(
+            original_path + folder_path + f"{kind}_e_value_eval_{n}.pickle"
+        )
+    else:
+        waldo_dict, bff_dict, e_value_dict = {}, {}, {}
 
     # importing waldo from pickle file
     waldo_stat = pd.read_pickle(original_path + stats_path + f"{kind}_waldo_{n}.pickle")
@@ -62,94 +74,197 @@ def simulate_theta_grid_eval(
     e_value_stat = pd.read_pickle(
         original_path + stats_path + f"{kind}_e_value_{n}.pickle"
     )
-
-    for theta in tqdm(theta_grid, desc="Creating stat grid"):
+    if completing:
         if theta_grid.ndim == 1:
-            theta_repeated = (
-                torch.tensor([theta])
-                .reshape(1, -1)
-                .repeat_interleave(repeats=n_lambda * n, dim=0)
-            )
+            new_theta_grid = theta_grid[len(waldo_dict) :]
         else:
-            theta_repeated = torch.tensor([theta]).repeat_interleave(
-                repeats=n_lambda * n, dim=0
+            new_theta_grid = theta_grid[len(waldo_dict) :, :]
+
+        for theta in tqdm(new_theta_grid, desc="Creating stat grid"):
+            if theta_grid.ndim == 1:
+                theta_repeated = (
+                    torch.tensor([theta])
+                    .reshape(1, -1)
+                    .repeat_interleave(repeats=n_lambda * n, dim=0)
+                )
+            else:
+                theta_repeated = torch.tensor([theta]).repeat_interleave(
+                    repeats=n_lambda * n, dim=0
+                )
+
+            # simulating lambdas for testing
+            X_net = simulator(theta_repeated)
+            if log_transf:
+                X_net = torch.log(X_net)
+            X_dim = X_net.shape[1]
+            X_net = X_net.reshape(n_lambda, n * X_dim)
+
+            # saving for weinberg
+            if theta.shape == ():
+                waldo_dict[theta] = waldo_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                bff_dict[theta] = bff_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                e_value_dict[theta] = e_value_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+            # saving for other problems
+            else:
+                waldo_dict[tuple(theta)] = waldo_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                bff_dict[tuple(theta)] = bff_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                e_value_dict[tuple(theta)] = e_value_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+
+            # Save checkpoint of the scores into pickle files
+            pickle.dump(
+                waldo_dict, open(save_path + f"{kind}_waldo_eval_{n}.pickle", "wb")
+            )
+            pickle.dump(bff_dict, open(save_path + f"{kind}_bff_eval_{n}.pickle", "wb"))
+            pickle.dump(
+                e_value_dict, open(save_path + f"{kind}_e_value_eval_{n}.pickle", "wb")
             )
 
-        # simulating lambdas for testing
-        X_net = simulator(theta_repeated)
-        if log_transf:
-            X_net = torch.log(X_net)
-        X_dim = X_net.shape[1]
-        X_net = X_net.reshape(n_lambda, n * X_dim)
+    else:
+        for theta in tqdm(theta_grid, desc="Creating stat grid"):
+            if theta_grid.ndim == 1:
+                theta_repeated = (
+                    torch.tensor([theta])
+                    .reshape(1, -1)
+                    .repeat_interleave(repeats=n_lambda * n, dim=0)
+                )
+            else:
+                theta_repeated = torch.tensor([theta]).repeat_interleave(
+                    repeats=n_lambda * n, dim=0
+                )
 
-        # saving for weinberg
-        if theta.shape == ():
-            waldo_dict[theta] = waldo_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
+            # simulating lambdas for testing
+            X_net = simulator(theta_repeated)
+            if log_transf:
+                X_net = torch.log(X_net)
+            X_dim = X_net.shape[1]
+            X_net = X_net.reshape(n_lambda, n * X_dim)
+
+            # saving for weinberg
+            if theta.shape == ():
+                waldo_dict[theta] = waldo_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                bff_dict[theta] = bff_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                e_value_dict[theta] = e_value_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+            # saving for other problems
+            else:
+                waldo_dict[tuple(theta)] = waldo_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                bff_dict[tuple(theta)] = bff_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+                e_value_dict[tuple(theta)] = e_value_stat.compute(
+                    theta_repeated.numpy()[0:n_lambda, :],
+                    X_net.numpy(),
+                    disable_tqdm=True,
+                )
+
+            # Save checkpoint of the scores into pickle files
+            pickle.dump(
+                waldo_dict, open(save_path + f"{kind}_waldo_eval_{n}.pickle", "wb")
             )
-            bff_dict[theta] = bff_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
-            )
-            e_value_dict[theta] = e_value_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
-            )
-        # saving for other problems
-        else:
-            waldo_dict[tuple(theta)] = waldo_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
-            )
-            bff_dict[tuple(theta)] = bff_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
-            )
-            e_value_dict[tuple(theta)] = e_value_stat.compute(
-                theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
+            pickle.dump(bff_dict, open(save_path + f"{kind}_bff_eval_{n}.pickle", "wb"))
+            pickle.dump(
+                e_value_dict, open(save_path + f"{kind}_e_value_eval_{n}.pickle", "wb")
             )
 
-        # Save checkpoint of the scores into pickle files
-        pickle.dump(waldo_dict, open(save_path + f"{kind}_waldo_eval_{n}.pickle", "wb"))
-        pickle.dump(bff_dict, open(save_path + f"{kind}_bff_eval_{n}.pickle", "wb"))
-        pickle.dump(
-            e_value_dict, open(save_path + f"{kind}_e_value_eval_{n}.pickle", "wb")
-        )
 
-
-n_list = [1, 5, 10, 20, 50]
+n_list = np.array([1, 5, 10, 20, 50])
 
 if __name__ == "__main__":
     print("We will now save all evaluation grid elements")
     kind = input("Which kind of simulator would like to use? ")
     n_lambda = int(input("What is the size of each statistic vector? "))
+    completing = input("Are you completing any process? ") == "yes"
+    if completing:
+        n_complete = int(input("In which n did you stopped? "))
+
     print(f"Generating evaluation grid for the {kind} problem")
-    for n in n_list:
-        print("Fitting for n = {}".format(n))
+    if kind == "tractable":
+        # obtaining evaluation grid
+        n_par = 5
+        pars = np.linspace(-2.9, 2.9, n_par)
+        pars[pars == 0] = 0.01
+        thetas_valid = np.c_[list(itertools.product(pars, pars, pars, pars, pars))]
 
-        if kind == "tractable":
-            # obtaining evaluation grid
-            n_par = 5
-            pars = np.linspace(-2.9, 2.9, n_par)
-            pars[pars == 0] = 0.01
-            thetas_valid = np.c_[list(itertools.product(pars, pars, pars, pars, pars))]
+    elif kind == "weinberg":
+        n_out = 300
+        thetas_valid = np.linspace(0.51, 1.49, n_out)
 
-        elif kind == "weinberg":
-            n_out = 300
-            thetas_valid = np.linspace(0.51, 1.49, n_out)
+    elif kind == "mg1":
+        n_par = 8
+        pars_1 = np.linspace(0.1, 9.9, n_par)
+        pars_2 = np.linspace(0.01, 1 / 3 - 0.01, n_par)
+        thetas_valid = np.c_[list(itertools.product(pars_1, pars_1, pars_2))]
 
-        elif kind == "mg1":
-            n_par = 8
-            pars_1 = np.linspace(0.1, 9.9, n_par)
-            pars_2 = np.linspace(0.01, 1 / 3 - 0.01, n_par)
-            thetas_valid = np.c_[list(itertools.product(pars_1, pars_1, pars_2))]
+    elif kind == "sir":
+        n_par = 22
+        pars_1 = np.linspace(0.01, 0.49, n_par)
+        thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
-        elif kind == "sir":
-            n_par = 22
-            pars_1 = np.linspace(0.01, 0.49, n_par)
-            thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
+    elif kind == "two moons":
+        n_par = 20
+        pars_1 = np.linspace(-0.99, 0.99, n_par)
+        thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
-        elif kind == "two moons":
-            n_par = 20
-            pars_1 = np.linspace(-0.99, 0.99, n_par)
-            thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
-
-        simulate_theta_grid_eval(
-            kind=kind, theta_grid=thetas_valid, n=n, n_lambda=n_lambda
-        )
+    if completing:
+        # updating n_list
+        n_list = n_list[np.where(n_list >= n_complete)]
+        for n in n_list:
+            print("Fitting for n = {}".format(n))
+            complete_now = n == n_list[0]
+            simulate_theta_grid_eval(
+                kind=kind,
+                theta_grid=thetas_valid,
+                n=n,
+                n_lambda=n_lambda,
+                completing=complete_now,
+            )
+    else:
+        for n in n_list:
+            print("Fitting for n = {}".format(n))
+            simulate_theta_grid_eval(
+                kind=kind,
+                theta_grid=thetas_valid,
+                n=n,
+                n_lambda=n_lambda,
+            )
