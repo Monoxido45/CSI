@@ -5,22 +5,26 @@ import pandas as pd
 import numpy as np
 import itertools
 
-# statistics and posterior model
-from CP2LFI.scores import WaldoScore, BFFScore, E_valueScore
-
-# utils functions
-from CP2LFI.utils import fit_post_model
-
 # functions to make simulator or prior
 from hypothesis.benchmark import sir, tractable, mg1, weinberg
 import sbibm
 import os
 from tqdm import tqdm
+import io
 
 # general path
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
 folder_path = "/results/LFI_objects/stat_data/"
+
+
+# for CPU usage
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "torch.storage" and name == "_load_from_bytes":
+            return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
+        else:
+            return super().find_class(module, name)
 
 
 def simulate_theta_grid_eval(
@@ -30,6 +34,7 @@ def simulate_theta_grid_eval(
     n_lambda=500,
     log_transf=False,
     completing=False,
+    using_CPU=False,
 ):
     two_moons = False
 
@@ -54,6 +59,39 @@ def simulate_theta_grid_eval(
         )  # See sbibm.get_available_tasks() for all tasks
         simulator = task.get_simulator()
 
+    # importing all statistics estimators
+    # importing all statistics
+    if using_CPU:
+        # importing waldo
+        with open(original_path + stats_path + f"{kind}_waldo_{n}.pickle", "rb") as f:
+            waldo_stat = CPU_Unpickler(f).load()
+
+        # importing e-value
+        with open(original_path + stats_path + f"{kind}_e_value_{n}.pickle", "rb") as f:
+            e_value_stat = CPU_Unpickler(f).load()
+
+        # importing bff
+        with open(original_path + stats_path + f"{kind}_bff_{n}.pickle", "rb") as f:
+            bff_stat = CPU_Unpickler(f).load()
+
+        waldo_stat.base_model.device = torch.device("cpu")
+        bff_stat.base_model.device = torch.device("cpu")
+        e_value_stat.base_model.device = torch.device("cpu")
+        waldo_stat.base_model.model.device = torch.device("cpu")
+    else:
+        # importing waldo
+        waldo_stat = pd.read_pickle(
+            original_path + stats_path + f"{kind}_waldo_{n}.pickle"
+        )
+
+        # importing bff
+        bff_stat = pd.read_pickle(original_path + stats_path + f"{kind}_bff_{n}.pickle")
+
+        # import e-value from pickle file
+        e_value_stat = pd.read_pickle(
+            original_path + stats_path + f"{kind}_e_value_{n}.pickle"
+        )
+
     # computing and saving dictionary for each statistic
     if completing:
         waldo_dict = pd.read_pickle(
@@ -68,12 +106,6 @@ def simulate_theta_grid_eval(
     else:
         waldo_dict, bff_dict, e_value_dict = {}, {}, {}
 
-    # importing waldo from pickle file
-    waldo_stat = pd.read_pickle(original_path + stats_path + f"{kind}_waldo_{n}.pickle")
-    bff_stat = pd.read_pickle(original_path + stats_path + f"{kind}_bff_{n}.pickle")
-    e_value_stat = pd.read_pickle(
-        original_path + stats_path + f"{kind}_e_value_{n}.pickle"
-    )
     if completing:
         if theta_grid.ndim == 1:
             new_theta_grid = theta_grid[len(waldo_dict) :]
@@ -214,6 +246,13 @@ if __name__ == "__main__":
     print("We will now save all evaluation grid elements")
     kind = input("Which kind of simulator would like to use? ")
     n_lambda = int(input("What is the size of each statistic vector? "))
+    use_CPU = (
+        input("Do you want to use a CPU instead of a GPU to compute the statistics? ")
+        == "yes"
+    )
+    n_unique = (
+        input("Do you whish to compute all evaluation grid for a single n? ") == "yes"
+    )
     completing = input("Are you completing any process? ") == "yes"
     if completing:
         n_complete = int(input("In which n did you stopped? "))
@@ -247,24 +286,49 @@ if __name__ == "__main__":
         thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
     if completing:
-        # updating n_list
-        n_list = n_list[np.where(n_list >= n_complete)]
-        for n in n_list:
-            print("Fitting for n = {}".format(n))
-            complete_now = n == n_list[0]
+        if n_unique:
+            print("Fitting for n = {}".format(n_complete))
             simulate_theta_grid_eval(
                 kind=kind,
                 theta_grid=thetas_valid,
-                n=n,
+                n=n_complete,
                 n_lambda=n_lambda,
-                completing=complete_now,
+                completing=True,
+                using_CPU=use_CPU,
             )
+        else:
+            # updating n_list if n not unique
+            n_list = n_list[np.where(n_list >= n_complete)]
+            for n in n_list:
+                print("Fitting for n = {}".format(n))
+                complete_now = n == n_list[0]
+                simulate_theta_grid_eval(
+                    kind=kind,
+                    theta_grid=thetas_valid,
+                    n=n,
+                    n_lambda=n_lambda,
+                    completing=complete_now,
+                    using_CPU=use_CPU,
+                )
     else:
-        for n in n_list:
+        if n_unique:
+            n = int(input("Which n do you want to fix? "))
             print("Fitting for n = {}".format(n))
             simulate_theta_grid_eval(
                 kind=kind,
                 theta_grid=thetas_valid,
                 n=n,
                 n_lambda=n_lambda,
+                using_CPU=use_CPU,
             )
+        else:
+            print("Computing for a list of n")
+            for n in n_list:
+                print("Fitting for n = {}".format(n))
+                simulate_theta_grid_eval(
+                    kind=kind,
+                    theta_grid=thetas_valid,
+                    n=n,
+                    n_lambda=n_lambda,
+                    using_CPU=use_CPU,
+                )
