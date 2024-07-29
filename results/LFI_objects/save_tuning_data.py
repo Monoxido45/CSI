@@ -158,6 +158,11 @@ def generate_tuning_matrix(
 
             # Save checkpoint of the scores into pickle files
             pickle.dump(
+                K_valid_thetas,
+                open(save_path + f"{kind}_theta_tune_{n}.pickle", "wb"),
+            )
+
+            pickle.dump(
                 waldo_tune_sample,
                 open(save_path + f"{kind}_waldo_tune_{n}.pickle", "wb"),
             )
@@ -171,6 +176,7 @@ def generate_tuning_matrix(
 
             i += 1
     else:
+        print("a")
         # computing and saving dictionary for each statistic
         if two_moons:
             theta_tune = prior(num_samples=B)
@@ -201,46 +207,51 @@ def generate_tuning_matrix(
                     repeats=n_lambda * n, dim=0
                 )
 
-                X_net = simulator(theta_repeated)
-                if log_transf:
-                    X_net = torch.log(X_net)
-                X_dim = X_net.shape[1]
-                X_net = X_net.reshape(n_lambda, n * X_dim)
+            X_net = simulator(theta_repeated)
+            if log_transf:
+                X_net = torch.log(X_net)
+            X_dim = X_net.shape[1]
+            X_net = X_net.reshape(n_lambda, n * X_dim)
 
-                # waldo tuning samples
-                waldo_tune_sample[i, :] = waldo_stat.compute(
-                    thetas=theta_repeated.numpy()[0:n_lambda, :],
-                    X=X_net.numpy(),
-                    disable_tqdm=True,
-                )
+            # waldo tuning samples
+            waldo_tune_sample[i, :] = waldo_stat.compute(
+                thetas=theta_repeated.numpy()[0:n_lambda, :],
+                X=X_net.numpy(),
+                disable_tqdm=True,
+            )
 
-                bff_tune_sample[i, :] = bff_stat.compute(
-                    thetas=theta_repeated.numpy()[0:n_lambda, :],
-                    X=X_net.numpy(),
-                    disable_tqdm=True,
-                )
+            bff_tune_sample[i, :] = bff_stat.compute(
+                thetas=theta_repeated.numpy()[0:n_lambda, :],
+                X=X_net.numpy(),
+                disable_tqdm=True,
+            )
 
-                e_value_tune_sample[i, :] = e_value_stat.compute(
-                    thetas=theta_repeated.numpy()[0:n_lambda, :],
-                    X=X_net.numpy(),
-                    disable_tqdm=True,
-                )
+            e_value_tune_sample[i, :] = e_value_stat.compute(
+                thetas=theta_repeated.numpy()[0:n_lambda, :],
+                X=X_net.numpy(),
+                disable_tqdm=True,
+            )
 
-                i += 1
+            i += 1
 
-                # Save checkpoint of the scores into pickle files
-                pickle.dump(
-                    waldo_tune_sample,
-                    open(save_path + f"{kind}_waldo_tune_{n}.pickle", "wb"),
-                )
-                pickle.dump(
-                    bff_tune_sample,
-                    open(save_path + f"{kind}_bff_tune_{n}.pickle", "wb"),
-                )
-                pickle.dump(
-                    e_value_tune_sample,
-                    open(save_path + f"{kind}_e_value_tune_{n}.pickle", "wb"),
-                )
+            # Save checkpoint of the scores into pickle files
+            pickle.dump(
+                K_valid_thetas,
+                open(save_path + f"{kind}_theta_tune_{n}.pickle", "wb"),
+            )
+
+            pickle.dump(
+                waldo_tune_sample,
+                open(save_path + f"{kind}_waldo_tune_{n}.pickle", "wb"),
+            )
+            pickle.dump(
+                bff_tune_sample,
+                open(save_path + f"{kind}_bff_tune_{n}.pickle", "wb"),
+            )
+            pickle.dump(
+                e_value_tune_sample,
+                open(save_path + f"{kind}_e_value_tune_{n}.pickle", "wb"),
+            )
 
 
 n_list = np.array([1, 5, 10, 20, 50])
@@ -262,10 +273,10 @@ if __name__ == "__main__":
         n_complete = int(input("In which n did you stopped? "))
         print(f"Generating tuning samples for the {kind} problem")
         if n_unique:
-            print("Fitting for n = {}".format(n_unique))
+            print("Fitting for n = {}".format(n_complete))
             generate_tuning_matrix(
                 kind=kind,
-                n=n_unique,
+                n=n_complete,
                 n_lambda=n_lambda,
                 B=B,
                 completing=True,
@@ -294,17 +305,31 @@ if __name__ == "__main__":
                 n=n,
                 n_lambda=n_lambda,
                 B=B,
-                completing=True,
+                completing=False,
                 using_CPU=use_CPU,
             )
         else:
-            print("Computing for a list of n")
-            for n in n_list:
-                print("Fitting for n = {}".format(n))
-                generate_tuning_matrix(
-                    kind=kind,
-                    n=n,
-                    n_lambda=n_lambda,
-                    B=B,
-                    using_CPU=use_CPU,
-                )
+            starting_another = input(f"Are you starting from another n") == "yes"
+            if starting_another:
+                n_new = int(input("Which n do you want to fix? "))
+                print("Computing for a new list of n")
+                n_list = n_list[np.where(n_list >= n_new)]
+                for n in n_list:
+                    print("Fitting for n = {}".format(n))
+                    generate_tuning_matrix(
+                        kind=kind,
+                        n=n,
+                        n_lambda=n_lambda,
+                        B=B,
+                        using_CPU=use_CPU,
+                    )
+            else:
+                for n in n_list:
+                    print("Fitting for n = {}".format(n))
+                    generate_tuning_matrix(
+                        kind=kind,
+                        n=n,
+                        n_lambda=n_lambda,
+                        B=B,
+                        using_CPU=use_CPU,
+                    )

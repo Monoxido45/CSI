@@ -322,13 +322,27 @@ if __name__ == "__main__":
                 using_CPU=use_CPU,
             )
         else:
-            print("Computing for a list of n")
-            for n in n_list:
-                print("Fitting for n = {}".format(n))
-                simulate_theta_grid_eval(
-                    kind=kind,
-                    theta_grid=thetas_valid,
-                    n=n,
-                    n_lambda=n_lambda,
-                    using_CPU=use_CPU,
-                )
+            starting_another = input(f"Are you starting from another n") == "yes"
+            if starting_another:
+                n_new = int(input("Which n do you want to fix? "))
+                print("Computing for a new list of n")
+                n_list = n_list[np.where(n_list >= n_new)]
+                for n in n_list:
+                    print("Fitting for n = {}".format(n))
+                    simulate_theta_grid_eval(
+                        kind=kind,
+                        theta_grid=thetas_valid,
+                        n=n,
+                        n_lambda=n_lambda,
+                        using_CPU=use_CPU,
+                    )
+            else:
+                for n in n_list:
+                    print("Fitting for n = {}".format(n))
+                    simulate_theta_grid_eval(
+                        kind=kind,
+                        theta_grid=thetas_valid,
+                        n=n,
+                        n_lambda=n_lambda,
+                        using_CPU=use_CPU,
+                    )
