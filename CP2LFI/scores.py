@@ -126,8 +126,6 @@ class RegressionScore(Scores):
 
 # main LFI statistics scores
 # waldo score
-
-
 class WaldoScore(Scores):
     def fit(self, X=None, thetas=None):
         # setting up model for normalizing flows
@@ -224,6 +222,80 @@ class BFFScore(Scores):
         else:
             X_tile = np.tile(X, (thetas.shape[0], 1))
             return -self.base_model.predict(thetas, X_tile)
+
+    # function to compute nuissance
+    def compute_nuissance(
+        self,
+        thetas,
+        X,
+        nuissance_idx,
+        disable_tqdm=False,
+        MC_samples=500,
+        posterior_marginalized=False,
+    ):
+        idx_array = np.arange(0, thetas.shape[1])
+        parameter_idx = np.setdiff1d(idx_array, nuissance_idx)
+        par_reorder = np.concatenate((parameter_idx, nuissance_idx), axis=None)
+        thetas_par = thetas[:, parameter_idx]
+
+        i = 0
+        if disable_tqdm:
+            if not posterior_marginalized:
+                nuis_prob = np.zeros(thetas.shape[0])
+                for theta in thetas_par:
+                    theta_sample = self.base_model.sample(
+                        X=X[i, :], num_samples=MC_samples
+                    )
+
+                    # computing mean across several nuissance parameters
+                    theta_repeat = np.tile(theta, (MC_samples, 1))
+                    new_theta_sample = np.column_stack(
+                        (theta_repeat, theta_sample[:, nuissance_idx])
+                    )
+                    # rearranging new theta sample columns
+                    new_theta_sample = new_theta_sample[:, par_reorder]
+
+                    # computing probabilities
+                    X_tile = np.tile(X[i, :], (new_theta_sample.shape[0], 1))
+
+                    # computing the mean
+                    nuis_prob[i] = -np.mean(
+                        self.base_model.predict(new_theta_sample, X_tile)
+                    )
+                    i += 1
+            else:
+                nuis_prob = -self.base_model.predict(thetas_par, X)
+
+        else:
+            if not posterior_marginalized:
+                nuis_prob = np.zeros(thetas.shape[0])
+                for theta in tqdm(
+                    thetas_par,
+                    desc="Computing marginal posterior probability for theta",
+                ):
+                    theta_sample = self.base_model.sample(
+                        X=X[i, :], num_samples=MC_samples
+                    )
+
+                    # computing mean across several nuissance parameters
+                    theta_repeat = np.tile(theta, (MC_samples, 1))
+                    new_theta_sample = np.column_stack(
+                        (theta_repeat, theta_sample[:, nuissance_idx])
+                    )
+                    # rearranging new theta sample columns
+                    new_theta_sample = new_theta_sample[:, par_reorder]
+
+                    # computing probabilities
+                    X_tile = np.tile(X[i, :], (new_theta_sample.shape[0], 1))
+
+                    # computing the mean
+                    nuis_prob[i] = -np.mean(
+                        self.base_model.predict(new_theta_sample, X_tile)
+                    )
+                    i += 1
+            else:
+                nuis_prob = -self.base_model.predict(thetas_par, X)
+        return nuis_prob
 
     def predict(self, thetas_grid, X, cutoffs, theta_1d=True):
         # predicting lambdas for all thetas

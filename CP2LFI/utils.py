@@ -378,6 +378,7 @@ def obtain_quantiles(
 def fit_post_model(
     simulator,
     prior,
+    nuisance_idx=None,
     log_transf=False,
     B_model=20000,
     n=1,
@@ -393,6 +394,7 @@ def fit_post_model(
     type_flow="Quadratic Spline",
     plot_history=True,
     two_moons=False,
+    poisson=False,
 ):
 
     torch.manual_seed(seed)
@@ -401,6 +403,8 @@ def fit_post_model(
     # simulating thetas
     if two_moons:
         thetas = prior(num_samples=B_model)
+    elif poisson:
+        thetas = prior(n=(B_model,))
     else:
         thetas = prior.sample((B_model,))
 
@@ -413,6 +417,9 @@ def fit_post_model(
         X_sample = torch.log(X_sample)
     X_dim = X_sample.shape[1]
     X_net = X_sample.reshape(B_model, n * X_dim)
+
+    if nuisance_idx is not None:
+        thetas = thetas[:, nuisance_idx]
 
     if thetas.ndim == 1:
         thetas = thetas.reshape(-1, 1)
