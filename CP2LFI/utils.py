@@ -75,6 +75,7 @@ def naive(
     elif kind == "tractable":
         # given the complexity, reducing to only 10 grid if B > 5000
         par_grid = np.linspace(-2.9999, 2.9999, int(np.ceil(n_grid ** (1 / 5))))
+        par_grid[par_grid == 0] = 0.01
 
         for theta_1, theta_2, theta_3, theta_4, theta_5 in tqdm(
             itertools.product(par_grid, par_grid, par_grid, par_grid, par_grid),
@@ -419,7 +420,11 @@ def fit_post_model(
     X_net = X_sample.reshape(B_model, n * X_dim)
 
     if nuisance_idx is not None:
-        thetas = thetas[:, nuisance_idx]
+        size = thetas.shape[1]
+        # idx list
+        idx_array = np.arange(0, size)
+        par_idx = idx_array[np.where(idx_array != nuisance_idx)]
+        thetas = thetas[:, par_idx]
 
     if thetas.ndim == 1:
         thetas = thetas.reshape(-1, 1)
