@@ -17,5 +17,5 @@ rng_states.npz
 experiments/temp_data
 results/res_data
 results/res_data.zip
-results/LFI_objects/stat_data/
+#results/LFI_objects/stat_data/
 #results/LFI_objects/tune_data/
