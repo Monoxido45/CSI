@@ -56,145 +56,282 @@ def naive(
     N=100,
     naive_n=500,
     disable_tqdm=True,
+    disable_tqdm_naive=True,
     log_transf=False,
 ):
     n_grid = int(B / naive_n)
     quantiles = {}
 
-    if kind == "weinberg":
-        thetas = np.linspace(0.5001, 1.4999, n_grid)
-        for theta in tqdm(thetas, desc="fitting monte carlo cutoffs"):
-            theta_fixed = torch.tensor([theta])
-            repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
-                repeats=naive_n * N, dim=0
-            )
-            X_samples = simulator(repeated_thetas)
+    if not disable_tqdm_naive:
+        if kind == "weinberg":
+            thetas = np.linspace(0.5001, 1.4999, n_grid)
+            for theta in tqdm(thetas, desc="fitting monte carlo cutoffs"):
+                theta_fixed = torch.tensor([theta])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
 
-            if log_transf:
-                X_samples = torch.log(X_samples)
+                if log_transf:
+                    X_samples = torch.log(X_samples)
 
-            X_dim = X_samples.shape[1]
-            X_samples = X_samples.reshape(naive_n, N * X_dim)
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
 
-            lambdas = score.compute(
-                thetas=repeated_thetas.numpy()[0:naive_n, :],
-                X=X_samples.numpy(),
-                disable_tqdm=disable_tqdm,
-            )
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
 
-            quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
+                quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
 
-    elif kind == "tractable":
-        # given the complexity, reducing to only 10 grid if B > 5000
-        par_grid = np.linspace(-2.9999, 2.9999, int(np.ceil(n_grid ** (1 / 5))))
-        par_grid[par_grid == 0] = 0.01
+        elif kind == "tractable":
+            # given the complexity, reducing to only 10 grid if B > 5000
+            par_grid = np.linspace(-2.9999, 2.9999, int(np.ceil(n_grid ** (1 / 5))))
+            par_grid[par_grid == 0] = 0.01
 
-        for theta_1, theta_2, theta_3, theta_4, theta_5 in tqdm(
-            itertools.product(par_grid, par_grid, par_grid, par_grid, par_grid),
-            desc="fitting monte carlo cutoffs",
-        ):
-            theta_fixed = torch.tensor([theta_1, theta_2, theta_3, theta_4, theta_5])
-            repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
-                repeats=naive_n * N, dim=0
-            )
-            X_samples = simulator(repeated_thetas)
+            for theta_1, theta_2, theta_3, theta_4, theta_5 in tqdm(
+                itertools.product(par_grid, par_grid, par_grid, par_grid, par_grid),
+                desc="fitting monte carlo cutoffs",
+            ):
+                theta_fixed = torch.tensor(
+                    [theta_1, theta_2, theta_3, theta_4, theta_5]
+                )
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
 
-            if log_transf:
-                X_samples = torch.log(X_samples)
+                if log_transf:
+                    X_samples = torch.log(X_samples)
 
-            X_dim = X_samples.shape[1]
-            X_samples = X_samples.reshape(naive_n, N * X_dim)
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
 
-            lambdas = score.compute(
-                thetas=repeated_thetas.numpy()[0:naive_n, :],
-                X=X_samples.numpy(),
-                disable_tqdm=disable_tqdm,
-            )
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
 
-            quantiles[(theta_1, theta_2, theta_3, theta_4, theta_5)] = np.quantile(
-                lambdas, q=1 - alpha
-            )
+                quantiles[(theta_1, theta_2, theta_3, theta_4, theta_5)] = np.quantile(
+                    lambdas, q=1 - alpha
+                )
 
-    elif kind == "sir":
-        par_grid = np.linspace(0, 0.5, int(np.ceil(np.sqrt(n_grid))))
+        elif kind == "sir":
+            par_grid = np.linspace(0, 0.5, int(np.ceil(np.sqrt(n_grid))))
 
-        for theta_1, theta_2 in tqdm(
-            itertools.product(par_grid, par_grid), desc="fitting monte carlo cutoffs"
-        ):
-            theta_fixed = torch.tensor([theta_1, theta_2])
-            repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
-                repeats=naive_n * N, dim=0
-            )
-            X_samples = simulator(repeated_thetas)
+            for theta_1, theta_2 in tqdm(
+                itertools.product(par_grid, par_grid),
+                desc="fitting monte carlo cutoffs",
+            ):
+                theta_fixed = torch.tensor([theta_1, theta_2])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
 
-            if log_transf:
-                X_samples = torch.log(X_samples)
+                if log_transf:
+                    X_samples = torch.log(X_samples)
 
-            X_dim = X_samples.shape[1]
-            X_samples = X_samples.reshape(naive_n, N * X_dim)
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
 
-            lambdas = score.compute(
-                thetas=repeated_thetas.numpy()[0:naive_n, :],
-                X=X_samples.numpy(),
-                disable_tqdm=disable_tqdm,
-            )
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
 
-            quantiles[(theta_1, theta_2)] = np.quantile(lambdas, q=1 - alpha)
+                quantiles[(theta_1, theta_2)] = np.quantile(lambdas, q=1 - alpha)
 
-    elif kind == "two moons":
-        pars_1 = np.linspace(-0.9999, 0.9999, int(np.ceil(n_grid ** (1 / 2))))
+        elif kind == "two moons":
+            pars_1 = np.linspace(-0.9999, 0.9999, int(np.ceil(n_grid ** (1 / 2))))
 
-        for par1, par2 in tqdm(
-            itertools.product(pars_1, pars_1),
-            desc="fitting monte carlo cutoffs",
-        ):
-            theta_fixed = torch.tensor([par1, par2])
-            repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
-                repeats=naive_n * N, dim=0
-            )
-            X_samples = simulator(repeated_thetas)
+            for par1, par2 in tqdm(
+                itertools.product(pars_1, pars_1),
+                desc="fitting monte carlo cutoffs",
+            ):
+                theta_fixed = torch.tensor([par1, par2])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
 
-            if log_transf:
-                X_samples = torch.log(X_samples)
+                if log_transf:
+                    X_samples = torch.log(X_samples)
 
-            X_dim = X_samples.shape[1]
-            X_samples = X_samples.reshape(naive_n, N * X_dim)
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
 
-            lambdas = score.compute(
-                thetas=repeated_thetas.numpy()[0:naive_n, :],
-                X=X_samples.numpy(),
-                disable_tqdm=disable_tqdm,
-            )
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
 
-            quantiles[(par1, par2)] = np.quantile(lambdas, q=1 - alpha)
+                quantiles[(par1, par2)] = np.quantile(lambdas, q=1 - alpha)
 
-    elif kind == "mg1":
-        pars_1 = np.linspace(0.0001, 9.9999, int(np.ceil(n_grid ** (1 / 3))))
-        pars_2 = np.linspace(0.0001, 1 / 3 - 0.0001, int(np.ceil((n_grid) ** (1 / 3))))
-
-        for par1, par2, par3 in tqdm(
-            itertools.product(pars_1, pars_1, pars_2),
-            desc="fitting monte carlo cutoffs",
-        ):
-            theta_fixed = torch.tensor([par1, par2, par3])
-            repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
-                repeats=naive_n * N, dim=0
-            )
-            X_samples = simulator(repeated_thetas)
-
-            if log_transf:
-                X_samples = torch.log(X_samples)
-
-            X_dim = X_samples.shape[1]
-            X_samples = X_samples.reshape(naive_n, N * X_dim)
-
-            lambdas = score.compute(
-                thetas=repeated_thetas.numpy()[0:naive_n, :],
-                X=X_samples.numpy(),
-                disable_tqdm=disable_tqdm,
+        elif kind == "mg1":
+            pars_1 = np.linspace(0.0001, 9.9999, int(np.ceil(n_grid ** (1 / 3))))
+            pars_2 = np.linspace(
+                0.0001, 1 / 3 - 0.0001, int(np.ceil((n_grid) ** (1 / 3)))
             )
 
-            quantiles[(par1, par2, par3)] = np.quantile(lambdas, q=1 - alpha)
+            for par1, par2, par3 in tqdm(
+                itertools.product(pars_1, pars_1, pars_2),
+                desc="fitting monte carlo cutoffs",
+            ):
+                theta_fixed = torch.tensor([par1, par2, par3])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[(par1, par2, par3)] = np.quantile(lambdas, q=1 - alpha)
+    else:
+        if kind == "weinberg":
+            thetas = np.linspace(0.5001, 1.4999, n_grid)
+            for theta in thetas:
+                theta_fixed = torch.tensor([theta])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
+
+        elif kind == "tractable":
+            # given the complexity, reducing to only 10 grid if B > 5000
+            par_grid = np.linspace(-2.9999, 2.9999, int(np.ceil(n_grid ** (1 / 5))))
+            par_grid[par_grid == 0] = 0.01
+
+            for theta_1, theta_2, theta_3, theta_4, theta_5 in itertools.product(
+                par_grid, par_grid, par_grid, par_grid, par_grid
+            ):
+                theta_fixed = torch.tensor(
+                    [theta_1, theta_2, theta_3, theta_4, theta_5]
+                )
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[(theta_1, theta_2, theta_3, theta_4, theta_5)] = np.quantile(
+                    lambdas, q=1 - alpha
+                )
+
+        elif kind == "sir":
+            par_grid = np.linspace(0, 0.5, int(np.ceil(np.sqrt(n_grid))))
+
+            for theta_1, theta_2 in itertools.product(par_grid, par_grid):
+                theta_fixed = torch.tensor([theta_1, theta_2])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[(theta_1, theta_2)] = np.quantile(lambdas, q=1 - alpha)
+
+        elif kind == "two moons":
+            pars_1 = np.linspace(-0.9999, 0.9999, int(np.ceil(n_grid ** (1 / 2))))
+
+            for par1, par2 in itertools.product(pars_1, pars_1):
+                theta_fixed = torch.tensor([par1, par2])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[(par1, par2)] = np.quantile(lambdas, q=1 - alpha)
+
+        elif kind == "mg1":
+            pars_1 = np.linspace(0.0001, 9.9999, int(np.ceil(n_grid ** (1 / 3))))
+            pars_2 = np.linspace(
+                0.0001, 1 / 3 - 0.0001, int(np.ceil((n_grid) ** (1 / 3)))
+            )
+
+            for par1, par2, par3 in itertools.product(pars_1, pars_1, pars_2):
+                theta_fixed = torch.tensor([par1, par2, par3])
+                repeated_thetas = theta_fixed.reshape(1, -1).repeat_interleave(
+                    repeats=naive_n * N, dim=0
+                )
+                X_samples = simulator(repeated_thetas)
+
+                if log_transf:
+                    X_samples = torch.log(X_samples)
+
+                X_dim = X_samples.shape[1]
+                X_samples = X_samples.reshape(naive_n, N * X_dim)
+
+                lambdas = score.compute(
+                    thetas=repeated_thetas.numpy()[0:naive_n, :],
+                    X=X_samples.numpy(),
+                    disable_tqdm=disable_tqdm,
+                )
+
+                quantiles[(par1, par2, par3)] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
 
@@ -248,6 +385,7 @@ def obtain_quantiles_saved_tune(
         naive_n=naive_n,
         log_transf=log_transf,
         disable_tqdm=disable_tqdm,
+        disable_tqdm_naive=True,
     )
     naive_list = predict_naive_quantile(kind, theta_grid_eval, naive_quantiles)
 
