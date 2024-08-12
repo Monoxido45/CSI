@@ -40,6 +40,7 @@ def compute_MAE_N_B(
     split_calib=False,
     using_beta=False,
     using_cpu=True,
+    two_moons=False,
 ):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -94,6 +95,7 @@ def compute_MAE_N_B(
             log_transf=log_transf,
             split_calib=split_calib,
             using_beta=using_beta,
+            two_moons=two_moons,
         )
         mae_list, se_list, methods_list, N_list, B_list = [], [], [], [], []
 
@@ -182,7 +184,7 @@ def compute_MAE_N_B(
 
 # Note: The inner loop where theta is processed, and the obtain_quantiles function call
 # need to be adapted based on the actual implementation details of obtain_quantiles and t
-n_list = [1, 5, 10, 20]
+n_list = [1, 5, 10, 20, 50]
 B_list = [10000, 15000, 20000, 30000]
 
 if __name__ == "__main__":
@@ -194,6 +196,7 @@ if __name__ == "__main__":
     it = int(input("How many iterations? "))
     cpu = input("Are you using CPU for all simulations? ") == "yes"
     print(f"Starting experiments for {kind} simulator with {score} statistic")
+    n_unique = input("Do you whish to compute all MAE a single n? ") == "yes"
 
     two_moons = False
     # importing simulator and prior for each kind of statistic
@@ -240,11 +243,61 @@ if __name__ == "__main__":
         thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
     # creating list to save overall data
-    stat_data_list = []
-    print("Starting loop in n")
-    for n in n_list:
+    if not n_unique:
+        stat_data_list = []
+        print("Starting loop in n")
+        for n in n_list:
+            for B in B_list:
+                print(f"Computing MAE for n = {n} and B = {B}")
+                if kind == "mg1":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n,
+                        B=B,
+                        using_cpu=cpu,
+                        log_transf=True,
+                    )
+                elif kind == "two moons":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n,
+                        B=B,
+                        using_cpu=cpu,
+                        two_moons=True,
+                    )
+                else:
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n,
+                        B=B,
+                        using_cpu=cpu,
+                    )
+                stats_data = stats_data.assign(B=B, N=n)
+                stat_data_list.append(stats_data)
+        print("Saving overall data")
+        # creating saving path
+        folder_path = "/results/LFI_real_results/"
+        var_path = kind + "/" + score
+        save_path = original_path + folder_path + var_path
+
+        overall_df = pd.concat(stat_data_list)
+        overall_df.to_csv(save_path + f"MAE_data_overall.csv")
+    else:
+        n_new = int(input("Which n do you want to fix? "))
         for B in B_list:
-            print(f"Computing MAE for n = {n} and B = {B}")
+            print(f"Computing MAE for n = {n_new} and B = {B}")
             if kind == "mg1":
                 stats_data = compute_MAE_N_B(
                     kind,
@@ -252,10 +305,22 @@ if __name__ == "__main__":
                     thetas_valid,
                     simulator,
                     prior,
-                    N=n,
+                    N=n_new,
                     B=B,
                     using_cpu=cpu,
                     log_transf=True,
+                )
+            elif kind == "two moons":
+                stats_data = compute_MAE_N_B(
+                    kind,
+                    score,
+                    thetas_valid,
+                    simulator,
+                    prior,
+                    N=n_new,
+                    B=B,
+                    using_cpu=cpu,
+                    two_moons=True,
                 )
             else:
                 stats_data = compute_MAE_N_B(
@@ -264,17 +329,7 @@ if __name__ == "__main__":
                     thetas_valid,
                     simulator,
                     prior,
-                    N=n,
+                    N=n_new,
                     B=B,
                     using_cpu=cpu,
                 )
-            stats_data.assign(B=B, N=n)
-            stat_data_list.append(stats_data)
-    print("Saving overall data")
-    # creating saving path
-    folder_path = "/results/LFI_real_results/"
-    var_path = kind + "/" + score
-    save_path = original_path + folder_path + var_path
-
-    overall_df = pd.concat(stat_data_list)
-    overall_df.to_csv(save_path + f"MAE_data_overall.csv")
