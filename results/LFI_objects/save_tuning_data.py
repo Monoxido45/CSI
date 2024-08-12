@@ -75,7 +75,7 @@ def generate_tuning_matrix(
         waldo_stat.base_model.device = torch.device("cpu")
         bff_stat.base_model.device = torch.device("cpu")
         e_value_stat.base_model.device = torch.device("cpu")
-        waldo_stat.base_model.model.device = torch.device("cpu")
+
     else:
         # importing waldo
         waldo_stat = pd.read_pickle(

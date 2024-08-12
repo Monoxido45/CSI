@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 import os
-from CP2LFI.utils import obtain_quantiles, CPU_Unpickler
+from CP2LFI.utils import obtain_quantiles_saved_tune, CPU_Unpickler
 
 from hypothesis.benchmark import sir, tractable, mg1, weinberg
 import sbibm
@@ -13,6 +13,8 @@ import itertools
 # general path
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
+tune_path = "/results/LFI_objects/tune_data/"
+stats_eval_path = "/results/LFI_objects/stat_data/"
 
 
 def compute_MAE_N_B(
@@ -28,10 +30,8 @@ def compute_MAE_N_B(
     alpha=0.05,
     min_samples_leaf=300,
     n_estimators=200,
-    K=50,
-    B_valid=500,
-    N_lambda=250,
-    K_grid=np.concatenate((np.array([0]), np.arange(15, 95, 5))),
+    K=100,
+    K_grid=np.concatenate((np.array([0]), np.arange(10, 105, 5))),
     naive_n=500,
     disable_tqdm=True,
     seed=45,
@@ -39,6 +39,7 @@ def compute_MAE_N_B(
     log_transf=False,
     split_calib=False,
     using_beta=False,
+    using_cpu=True,
 ):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -50,10 +51,18 @@ def compute_MAE_N_B(
     # third column: TRUST++ tuned
     # fourth column: boosting
     # fifth column: monte-carlo
-    with open(original_path + stats_path + f"{kind}_{score_name}_{N}.pickle", "rb") as f:
-        score = CPU_Unpickler(f).load()
-
-    score.base_model.model.device = torch.device("cpu")
+    if using_cpu:
+        with open(
+            original_path + stats_path + f"{kind}_{score_name}_{N}.pickle", "rb"
+        ) as f:
+            score = CPU_Unpickler(f).load()
+        score.base_model.device = torch.device("cpu")
+        score.base_model.model.device = torch.device("cpu")
+        score.base_model.model.to(torch.device("cpu"))
+    else:
+        score = pd.read_pickle(
+            original_path + stats_path + f"{kind}_{score_name}_{N}.pickle"
+        )
 
     # creating folder if not existing
     var_path = kind + "/" + score_name
@@ -63,12 +72,15 @@ def compute_MAE_N_B(
         # creating kind and score directory if not existing
         os.makedirs(save_path)
 
-    for i in range(n_replica):
-        quantiles_dict, K_tuned = obtain_quantiles(
+    for i in tqdm(range(n_replica), desc="Computing MAE for each method: "):
+        quantiles_dict, K_tuned = obtain_quantiles_saved_tune(
             kind=kind,
             score=score,
+            score_name=score_name,
             theta_grid_eval=theta_grid_eval,
             simulator=simulator,
+            original_path=original_path,
+            tune_path=tune_path,
             prior=prior,
             N=N,
             B=B,
@@ -77,8 +89,6 @@ def compute_MAE_N_B(
             n_estimators=n_estimators,
             K=K,
             disable_tqdm=disable_tqdm,
-            B_valid=B_valid,
-            N_lambda=N_lambda,
             K_grid=K_grid,
             naive_n=naive_n,
             log_transf=log_transf,
@@ -86,6 +96,21 @@ def compute_MAE_N_B(
             using_beta=using_beta,
         )
         mae_list, se_list, methods_list, N_list, B_list = [], [], [], [], []
+
+        if using_cpu:
+            with open(
+                original_path
+                + stats_eval_path
+                + f"{kind}_{score_name}_eval_{n}.pickle",
+                "rb",
+            ) as f:
+                stat = CPU_Unpickler(f).load()
+            stat_dict = stat.get(theta)
+        else:
+            stat_dict = pd.read_pickle(
+                original_path + stats_eval_path + f"{kind}_{score_name}_eval_{n}.pickle"
+            )
+
         err_data = np.zeros((theta_grid_eval.shape[0], 5))
         l = 0
         for theta in tqdm(theta_grid_eval, desc="Evaluating coverage in this setting"):
@@ -95,11 +120,13 @@ def compute_MAE_N_B(
                     .reshape(1, -1)
                     .repeat_interleave(repeats=n_lambda * N, dim=0)
                 )
+                stat = stat_dict[theta]
             else:
                 theta_repeated = torch.tensor([theta]).repeat_interleave(
                     repeats=n_lambda * N, dim=0
                 )
                 theta = tuple(theta)
+                stat = stat_dict[theta]
 
             # simulating lambdas for testing
             X_net = simulator(theta_repeated)
@@ -111,9 +138,6 @@ def compute_MAE_N_B(
             # stat = score.compute(
             #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
             # )
-            with open(original_path + folder_path + f"{kind}_{score_name}_eval_{n}.pickle", "rb") as f:
-                stat = CPU_Unpickler(f).load()
-            stat = stat.get(theta)
 
             # comparing coverage of methods
             locart_cover = np.mean(stat <= quantiles_dict["locart"][l])
@@ -147,7 +171,7 @@ def compute_MAE_N_B(
 
         # saving checkpoint
         print("Saving data checkpoint on iteration {}".format(i + 1))
-        stats_data.to_csv(save_path + "MAE_data.csv")
+        stats_data.to_csv(save_path + f"/MAE_data_{N}_{B}.csv")
 
     stats_data = pd.DataFrame(
         data=mae_array,
@@ -168,7 +192,8 @@ if __name__ == "__main__":
         "Which kind of statistics would you like to use to derive confidence regions? "
     )
     it = int(input("How many iterations? "))
-    print(f"Starting experiment for {kind} simulator with {score} statistic")
+    cpu = input("Are you using CPU for all simulations? ") == "yes"
+    print(f"Starting experiments for {kind} simulator with {score} statistic")
 
     two_moons = False
     # importing simulator and prior for each kind of statistic
@@ -214,18 +239,42 @@ if __name__ == "__main__":
         pars_1 = np.linspace(-0.99, 0.99, n_par)
         thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
-    # creating
+    # creating list to save overall data
+    stat_data_list = []
+    print("Starting loop in n")
     for n in n_list:
-        # TODO: open already fitted statistic with posterior estimator to avoid too much time fitting all
-        # also, save the tuning samples for TRUST++ in each case
         for B in B_list:
-            # fill in with what remains.
-            compute_MAE_N_B(
-                kind,
-                score,
-                thetas_valid,
-                simulator,
-                prior,
-                N=n,
-                B=B,
-            )
+            print(f"Computing MAE for n = {n} and B = {B}")
+            if kind == "mg1":
+                stats_data = compute_MAE_N_B(
+                    kind,
+                    score,
+                    thetas_valid,
+                    simulator,
+                    prior,
+                    N=n,
+                    B=B,
+                    using_cpu=cpu,
+                    log_transf=True,
+                )
+            else:
+                stats_data = compute_MAE_N_B(
+                    kind,
+                    score,
+                    thetas_valid,
+                    simulator,
+                    prior,
+                    N=n,
+                    B=B,
+                    using_cpu=cpu,
+                )
+            stats_data.assign(B=B, N=n)
+            stat_data_list.append(stats_data)
+    print("Saving overall data")
+    # creating saving path
+    folder_path = "/results/LFI_real_results/"
+    var_path = kind + "/" + score
+    save_path = original_path + folder_path + var_path
+
+    overall_df = pd.concat(stat_data_list)
+    overall_df.to_csv(save_path + f"MAE_data_overall.csv")
