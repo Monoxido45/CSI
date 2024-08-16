@@ -41,6 +41,8 @@ def compute_MAE_N_B(
     using_beta=False,
     using_cpu=True,
     two_moons=False,
+    completing_n=None,
+    completing=False,
 ):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -73,107 +75,234 @@ def compute_MAE_N_B(
         # creating kind and score directory if not existing
         os.makedirs(save_path)
 
-    for i in tqdm(range(n_replica), desc="Computing MAE for each method: "):
-        quantiles_dict, K_tuned = obtain_quantiles_saved_tune(
-            kind=kind,
-            score=score,
-            score_name=score_name,
-            theta_grid_eval=theta_grid_eval,
-            simulator=simulator,
-            original_path=original_path,
-            tune_path=tune_path,
-            prior=prior,
-            N=N,
-            B=B,
-            alpha=alpha,
-            min_samples_leaf=min_samples_leaf,
-            n_estimators=n_estimators,
-            K=K,
-            disable_tqdm=disable_tqdm,
-            K_grid=K_grid,
-            naive_n=naive_n,
-            log_transf=log_transf,
-            split_calib=split_calib,
-            using_beta=using_beta,
-            two_moons=two_moons,
-        )
-        mae_list, se_list, methods_list, N_list, B_list = [], [], [], [], []
-
-        if using_cpu:
-            with open(
-                original_path
-                + stats_eval_path
-                + f"{kind}_{score_name}_eval_{n}.pickle",
-                "rb",
-            ) as f:
-                stat = CPU_Unpickler(f).load()
-            stat_dict = stat.get(theta)
-        else:
-            stat_dict = pd.read_pickle(
-                original_path + stats_eval_path + f"{kind}_{score_name}_eval_{n}.pickle"
+    if not completing:
+        for i in tqdm(range(n_replica), desc="Computing MAE for each method: "):
+            quantiles_dict, K_tuned = obtain_quantiles_saved_tune(
+                kind=kind,
+                score=score,
+                score_name=score_name,
+                theta_grid_eval=theta_grid_eval,
+                simulator=simulator,
+                original_path=original_path,
+                tune_path=tune_path,
+                prior=prior,
+                N=N,
+                B=B,
+                alpha=alpha,
+                min_samples_leaf=min_samples_leaf,
+                n_estimators=n_estimators,
+                K=K,
+                disable_tqdm=disable_tqdm,
+                K_grid=K_grid,
+                naive_n=naive_n,
+                log_transf=log_transf,
+                split_calib=split_calib,
+                using_beta=using_beta,
+                two_moons=two_moons,
             )
 
-        err_data = np.zeros((theta_grid_eval.shape[0], 5))
-        l = 0
-        for theta in tqdm(theta_grid_eval, desc="Evaluating coverage in this setting"):
-            if theta_grid_eval.ndim == 1:
-                theta_repeated = (
-                    torch.tensor([theta])
-                    .reshape(1, -1)
-                    .repeat_interleave(repeats=n_lambda * N, dim=0)
-                )
-                stat = stat_dict[theta]
+            if using_cpu:
+                with open(
+                    original_path
+                    + stats_eval_path
+                    + f"{kind}_{score_name}_eval_{n}.pickle",
+                    "rb",
+                ) as f:
+                    stat = CPU_Unpickler(f).load()
+                stat_dict = stat.get(theta)
             else:
-                theta_repeated = torch.tensor([theta]).repeat_interleave(
-                    repeats=n_lambda * N, dim=0
+                stat_dict = pd.read_pickle(
+                    original_path
+                    + stats_eval_path
+                    + f"{kind}_{score_name}_eval_{N}.pickle"
                 )
-                theta = tuple(theta)
-                stat = stat_dict[theta]
 
-            # simulating lambdas for testing
-            X_net = simulator(theta_repeated)
-            if log_transf:
-                X_net = torch.log(X_net)
-            X_dim = X_net.shape[1]
-            X_net = X_net.reshape(n_lambda, N * X_dim)
+            err_data = np.zeros((theta_grid_eval.shape[0], 5))
+            l = 0
+            for theta in theta_grid_eval:
+                if theta_grid_eval.ndim == 1:
+                    theta_repeated = (
+                        torch.tensor([theta])
+                        .reshape(1, -1)
+                        .repeat_interleave(repeats=n_lambda * N, dim=0)
+                    )
+                    stat = stat_dict[theta]
+                else:
+                    theta_repeated = torch.tensor([theta]).repeat_interleave(
+                        repeats=n_lambda * N, dim=0
+                    )
+                    theta = tuple(theta)
+                    stat = stat_dict[theta]
 
-            # stat = score.compute(
-            #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
-            # )
+                # simulating lambdas for testing
+                X_net = simulator(theta_repeated)
+                if log_transf:
+                    X_net = torch.log(X_net)
+                X_dim = X_net.shape[1]
+                X_net = X_net.reshape(n_lambda, N * X_dim)
 
-            # comparing coverage of methods
-            locart_cover = np.mean(stat <= quantiles_dict["locart"][l])
-            loforest_cover = np.mean(stat <= quantiles_dict["loforest_fixed"][l])
-            loforest_tuned_cover = np.mean(stat <= quantiles_dict["loforest_tuned"][l])
-            boosting_cover = np.mean(stat <= quantiles_dict["boosting"][l])
-            naive_cover = np.mean(stat <= quantiles_dict["naive"][l])
+                # stat = score.compute(
+                #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
+                # )
 
-            # appending the errors
-            err_locart = np.abs(locart_cover - (1 - alpha))
-            err_loforest = np.abs(loforest_cover - (1 - alpha))
-            err_loforest_tuned = np.abs(loforest_tuned_cover - (1 - alpha))
-            err_boosting = np.abs(boosting_cover - (1 - alpha))
-            err_naive = np.abs(naive_cover - (1 - alpha))
+                # comparing coverage of methods
+                locart_cover = np.mean(stat <= quantiles_dict["locart"][l])
+                loforest_cover = np.mean(stat <= quantiles_dict["loforest_fixed"][l])
+                loforest_tuned_cover = np.mean(
+                    stat <= quantiles_dict["loforest_tuned"][l]
+                )
+                boosting_cover = np.mean(stat <= quantiles_dict["boosting"][l])
+                naive_cover = np.mean(stat <= quantiles_dict["naive"][l])
 
-            # saving in numpy array
-            err_data[l, :] = np.array(
-                [err_locart, err_loforest, err_loforest_tuned, err_boosting, err_naive]
+                # appending the errors
+                err_locart = np.abs(locart_cover - (1 - alpha))
+                err_loforest = np.abs(loforest_cover - (1 - alpha))
+                err_loforest_tuned = np.abs(loforest_tuned_cover - (1 - alpha))
+                err_boosting = np.abs(boosting_cover - (1 - alpha))
+                err_naive = np.abs(naive_cover - (1 - alpha))
+
+                # saving in numpy array
+                err_data[l, :] = np.array(
+                    [
+                        err_locart,
+                        err_loforest,
+                        err_loforest_tuned,
+                        err_boosting,
+                        err_naive,
+                    ]
+                )
+                l += 1
+
+            mae_array[i, :] = np.mean(err_data, axis=0)
+            K_array[i] = K_tuned
+
+            # saving the K column
+            stats_data = pd.DataFrame(
+                data=mae_array,
+                columns=["TRUST", "TRUST++ MV", "TRUST++ tuned", "boosting", "MC"],
             )
-            l += 1
+            stats_data["K_tuned"] = K_array
 
-        mae_array[i, :] = np.mean(err_data, axis=0)
-        K_array[i] = K_tuned
+            # saving checkpoint
+            print("Saving data checkpoint on iteration {}".format(i + 1))
+            stats_data.to_csv(save_path + f"/MAE_data_{N}_{B}.csv")
+    else:
+        stats_data = pd.read_csv(save_path + f"/MAE_data_{N}_{B}.csv")
 
-        # saving the K column
-        stats_data = pd.DataFrame(
-            data=mae_array,
-            columns=["TRUST", "TRUST++ MV", "TRUST++ tuned", "boosting", "MC"],
-        )
-        stats_data["K_tuned"] = K_array
+        mae_array = stats_data.iloc[:, 1:6].to_numpy()
 
-        # saving checkpoint
-        print("Saving data checkpoint on iteration {}".format(i + 1))
-        stats_data.to_csv(save_path + f"/MAE_data_{N}_{B}.csv")
+        for i in tqdm(
+            range(completing_n - 1, n_replica), desc="Computing MAE for each method: "
+        ):
+            quantiles_dict, K_tuned = obtain_quantiles_saved_tune(
+                kind=kind,
+                score=score,
+                score_name=score_name,
+                theta_grid_eval=theta_grid_eval,
+                simulator=simulator,
+                original_path=original_path,
+                tune_path=tune_path,
+                prior=prior,
+                N=N,
+                B=B,
+                alpha=alpha,
+                min_samples_leaf=min_samples_leaf,
+                n_estimators=n_estimators,
+                K=K,
+                disable_tqdm=disable_tqdm,
+                K_grid=K_grid,
+                naive_n=naive_n,
+                log_transf=log_transf,
+                split_calib=split_calib,
+                using_beta=using_beta,
+                two_moons=two_moons,
+            )
+
+            if using_cpu:
+                with open(
+                    original_path
+                    + stats_eval_path
+                    + f"{kind}_{score_name}_eval_{N}.pickle",
+                    "rb",
+                ) as f:
+                    stat = CPU_Unpickler(f).load()
+                stat_dict = stat.get(theta)
+            else:
+                stat_dict = pd.read_pickle(
+                    original_path
+                    + stats_eval_path
+                    + f"{kind}_{score_name}_eval_{N}.pickle"
+                )
+
+            err_data = np.zeros((theta_grid_eval.shape[0], 5))
+            l = 0
+            for theta in theta_grid_eval:
+                if theta_grid_eval.ndim == 1:
+                    theta_repeated = (
+                        torch.tensor([theta])
+                        .reshape(1, -1)
+                        .repeat_interleave(repeats=n_lambda * N, dim=0)
+                    )
+                    stat = stat_dict[theta]
+                else:
+                    theta_repeated = torch.tensor([theta]).repeat_interleave(
+                        repeats=n_lambda * N, dim=0
+                    )
+                    theta = tuple(theta)
+                    stat = stat_dict[theta]
+
+                # simulating lambdas for testing
+                X_net = simulator(theta_repeated)
+                if log_transf:
+                    X_net = torch.log(X_net)
+                X_dim = X_net.shape[1]
+                X_net = X_net.reshape(n_lambda, N * X_dim)
+
+                # stat = score.compute(
+                #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
+                # )
+
+                # comparing coverage of methods
+                locart_cover = np.mean(stat <= quantiles_dict["locart"][l])
+                loforest_cover = np.mean(stat <= quantiles_dict["loforest_fixed"][l])
+                loforest_tuned_cover = np.mean(
+                    stat <= quantiles_dict["loforest_tuned"][l]
+                )
+                boosting_cover = np.mean(stat <= quantiles_dict["boosting"][l])
+                naive_cover = np.mean(stat <= quantiles_dict["naive"][l])
+
+                # appending the errors
+                err_locart = np.abs(locart_cover - (1 - alpha))
+                err_loforest = np.abs(loforest_cover - (1 - alpha))
+                err_loforest_tuned = np.abs(loforest_tuned_cover - (1 - alpha))
+                err_boosting = np.abs(boosting_cover - (1 - alpha))
+                err_naive = np.abs(naive_cover - (1 - alpha))
+
+                # saving in numpy array
+                err_data[l, :] = np.array(
+                    [
+                        err_locart,
+                        err_loforest,
+                        err_loforest_tuned,
+                        err_boosting,
+                        err_naive,
+                    ]
+                )
+                l += 1
+
+            mae_array[i, :] = np.mean(err_data, axis=0)
+            K_array[i] = K_tuned
+
+            # saving the K column
+            stats_data = pd.DataFrame(
+                data=mae_array,
+                columns=["TRUST", "TRUST++ MV", "TRUST++ tuned", "boosting", "MC"],
+            )
+            stats_data["K_tuned"] = K_array
+
+            # saving checkpoint
+            print("Saving data checkpoint on iteration {}".format(i + 1))
+            stats_data.to_csv(save_path + f"/MAE_data_{N}_{B}.csv")
 
     stats_data = pd.DataFrame(
         data=mae_array,
@@ -184,8 +313,8 @@ def compute_MAE_N_B(
 
 # Note: The inner loop where theta is processed, and the obtain_quantiles function call
 # need to be adapted based on the actual implementation details of obtain_quantiles and t
-n_list = [1, 5, 10, 20, 50]
-B_list = [10000, 15000, 20000, 30000]
+n_list = np.array([1, 5, 10, 20, 50])
+B_list = np.array([10000, 15000, 20000, 30000])
 
 if __name__ == "__main__":
     print("We will now compute the MAE across several replicas for each LFI problem")
@@ -196,7 +325,11 @@ if __name__ == "__main__":
     it = int(input("How many iterations? "))
     cpu = input("Are you using CPU for all simulations? ") == "yes"
     print(f"Starting experiments for {kind} simulator with {score} statistic")
-    n_unique = input("Do you whish to compute all MAE a single n? ") == "yes"
+    n_unique = input("Do you whish to compute all MAE for a single n? ") == "yes"
+    B_unique = input("Do you whish to compute all MAE for a single B?") == "yes"
+    completing = input("Are you completing any process? ") == "yes"
+    if completing:
+        n_stop = int(input("In which repetition did you stopped? "))
 
     two_moons = False
     # importing simulator and prior for each kind of statistic
@@ -296,40 +429,170 @@ if __name__ == "__main__":
         overall_df.to_csv(save_path + f"MAE_data_overall.csv")
     else:
         n_new = int(input("Which n do you want to fix? "))
-        for B in B_list:
-            print(f"Computing MAE for n = {n_new} and B = {B}")
-            if kind == "mg1":
-                stats_data = compute_MAE_N_B(
-                    kind,
-                    score,
-                    thetas_valid,
-                    simulator,
-                    prior,
-                    N=n_new,
-                    B=B,
-                    using_cpu=cpu,
-                    log_transf=True,
-                )
-            elif kind == "two moons":
-                stats_data = compute_MAE_N_B(
-                    kind,
-                    score,
-                    thetas_valid,
-                    simulator,
-                    prior,
-                    N=n_new,
-                    B=B,
-                    using_cpu=cpu,
-                    two_moons=True,
-                )
+        if not B_unique:
+            B_complete = int(input("In which B did you stopped? "))
+            B_list = B_list[np.where(B_list >= B_complete)]
+            if not completing:
+                for B in B_list:
+                    print(f"Computing MAE for n = {n_new} and B = {B}")
+                    if kind == "mg1":
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                            log_transf=True,
+                        )
+                    elif kind == "two moons":
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                            two_moons=True,
+                        )
+                    else:
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                        )
             else:
-                stats_data = compute_MAE_N_B(
-                    kind,
-                    score,
-                    thetas_valid,
-                    simulator,
-                    prior,
-                    N=n_new,
-                    B=B,
-                    using_cpu=cpu,
-                )
+                for B in B_list:
+                    complete_now = B == B_list[0]
+                    print(f"Computing MAE for n = {n_new} and B = {B}")
+                    if kind == "mg1":
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                            log_transf=True,
+                            completing_n=n_stop,
+                            completing=complete_now,
+                        )
+                    elif kind == "two moons":
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                            two_moons=True,
+                            completing_n=n_stop,
+                            completing=complete_now,
+                        )
+                    else:
+                        stats_data = compute_MAE_N_B(
+                            kind,
+                            score,
+                            thetas_valid,
+                            simulator,
+                            prior,
+                            N=n_new,
+                            B=B,
+                            using_cpu=cpu,
+                            completing_n=n_stop,
+                            completing=complete_now,
+                        )
+        else:
+            B_new = int(input("Which B do you want to fix?"))
+            print(f"Computing MAE for n = {n_new} and B = {B_new}")
+            if not completing:
+                if kind == "mg1":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                        log_transf=True,
+                    )
+                elif kind == "two moons":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                        two_moons=True,
+                    )
+                else:
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                    )
+            else:
+                if kind == "mg1":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                        log_transf=True,
+                        completing_n=n_stop,
+                        completing=True,
+                    )
+                elif kind == "two moons":
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                        two_moons=True,
+                        completing_n=n_stop,
+                        completing=True,
+                    )
+                else:
+                    stats_data = compute_MAE_N_B(
+                        kind,
+                        score,
+                        thetas_valid,
+                        simulator,
+                        prior,
+                        N=n_new,
+                        B=B_new,
+                        using_cpu=cpu,
+                        completing_n=n_stop,
+                        completing=True,
+                    )

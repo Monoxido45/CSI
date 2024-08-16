@@ -707,8 +707,8 @@ def fit_post_model(
         thetas = prior(num_samples=B_model)
     elif poisson:
         thetas = prior(n=(B_model,))
-    elif glm and X_mat is not None:
-        thetas = prior(n=B_model, X_mat=X_mat)
+    elif glm:
+        thetas = prior(n=B_model)
     else:
         thetas = prior.sample((B_model,))
 
