@@ -43,6 +43,7 @@ def compute_MAE_N_B(
     two_moons=False,
     completing_n=None,
     completing=False,
+    completing_seed=350,
 ):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -187,6 +188,8 @@ def compute_MAE_N_B(
             print("Saving data checkpoint on iteration {}".format(i + 1))
             stats_data.to_csv(save_path + f"/MAE_data_{N}_{B}.csv")
     else:
+        torch.manual_seed(completing_seed)
+        torch.cuda.manual_seed(completing_seed)
         stats_data = pd.read_csv(save_path + f"/MAE_data_{N}_{B}.csv")
 
         mae_array = stats_data.iloc[:, 1:6].to_numpy()
@@ -471,6 +474,7 @@ if __name__ == "__main__":
                             using_cpu=cpu,
                         )
             else:
+                completing_seed = int(input("Fix your completing seed: "))
                 for B in B_list:
                     complete_now = B == B_list[0]
                     print(f"Computing MAE for n = {n_new} and B = {B}")
@@ -487,6 +491,7 @@ if __name__ == "__main__":
                             log_transf=True,
                             completing_n=n_stop,
                             completing=complete_now,
+                            completing_seed=completing_seed,
                         )
                     elif kind == "two moons":
                         stats_data = compute_MAE_N_B(
@@ -501,6 +506,7 @@ if __name__ == "__main__":
                             two_moons=True,
                             completing_n=n_stop,
                             completing=complete_now,
+                            completing_seed=completing_seed,
                         )
                     else:
                         stats_data = compute_MAE_N_B(
@@ -514,6 +520,7 @@ if __name__ == "__main__":
                             using_cpu=cpu,
                             completing_n=n_stop,
                             completing=complete_now,
+                            completing_seed=completing_seed,
                         )
         else:
             B_new = int(input("Which B do you want to fix?"))
@@ -555,6 +562,7 @@ if __name__ == "__main__":
                         using_cpu=cpu,
                     )
             else:
+                completing_seed = int(input("Fix your completing seed: "))
                 if kind == "mg1":
                     stats_data = compute_MAE_N_B(
                         kind,
@@ -568,6 +576,7 @@ if __name__ == "__main__":
                         log_transf=True,
                         completing_n=n_stop,
                         completing=True,
+                        completing_seed=completing_seed,
                     )
                 elif kind == "two moons":
                     stats_data = compute_MAE_N_B(
@@ -582,6 +591,7 @@ if __name__ == "__main__":
                         two_moons=True,
                         completing_n=n_stop,
                         completing=True,
+                        completing_seed=completing_seed,
                     )
                 else:
                     stats_data = compute_MAE_N_B(
@@ -595,4 +605,5 @@ if __name__ == "__main__":
                         using_cpu=cpu,
                         completing_n=n_stop,
                         completing=True,
+                        completing_seed=completing_seed,
                     )
