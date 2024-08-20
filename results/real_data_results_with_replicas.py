@@ -537,6 +537,7 @@ if __name__ == "__main__":
                         B=B_new,
                         using_cpu=cpu,
                         log_transf=True,
+                        seed = 250,
                     )
                 elif kind == "two moons":
                     stats_data = compute_MAE_N_B(
