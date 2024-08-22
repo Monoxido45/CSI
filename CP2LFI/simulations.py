@@ -19,7 +19,7 @@ class GLM_stat:
     ):
         # initializing variable and attributes
         # distribution from exponential family and link function
-        self.kind_dist = dist
+        self.dist = dist
         self.link_func = link_func
         # random seed
         if rng is None:
@@ -36,233 +36,250 @@ class GLM_stat:
         # fixed covariate matrix
         self.X_mat = sm.add_constant(X_mat)
 
-        def loglikelihood(self, beta, phi, Y_data):
+    def loglikelihood(self, beta, phi, Y_data):
+        if self.kind_dist == "gamma":
+            if self.link_func == "log":
+                shape_par = 1 / phi
+                if self.X_mat.ndim == 1:
+                    X_mat_used = self.X_mat.reshape(-1, 1)
+                else:
+                    X_mat_used = self.X_mat
+
+                # computing sum of log likelihood
+                log_l = np.sum(
+                    np.log(
+                        stats.gamma.pdf(
+                            Y_data,
+                            a=shape_par,
+                            scale=1
+                            / shape_par
+                            * np.exp(beta @ np.transpose(X_mat_used)),
+                        )
+                    )
+                )
+
+        return log_l
+
+    def simulator(self, beta_vec, phi_vec):
+        B, n = beta_vec.shape[0], self.X_mat.shape[0]
+        # computing linear component
+        linear_comp = beta_vec @ np.transpose(self.X_mat)
+        if self.dist == "gamma":
+            if self.link_func == "log":
+                shape_par = 1 / phi_vec
+                shape_par_dist = np.tile(shape_par, (n, 1)).transpose()
+                Y_sim = self.rng.gamma(
+                    shape=shape_par_dist,
+                    scale=1 / shape_par_dist * np.exp(linear_comp),
+                    size=(B, n),
+                )
+        return Y_sim
+
+    # computing likelihood ratio for glm
+    def LR_sim_lambda(
+        self,
+        beta_value,
+        phi_value,
+        B,
+        X_mat,
+        idx_1,
+        fit_intercept=True,
+    ):
+        lambda_array = np.zeros(B)
+        if not fit_intercept:
+            intercept_value = beta_value[0]
+        # making some adjustments to compute statistics with parameters and # nuisance parameters
+        if fit_intercept:
+            idxs = np.arange(0, beta_value.shape[0])
+            idx_2 = np.setdiff1d(idxs, idx_1)
+        else:
+            idxs = np.arange(1, beta_value.shape[0])
+            idx_2 = np.setdiff1d(idxs, idx_1)
+
+        beta_1 = beta_value[idx_1]
+
+        par_reorder = np.concatenate((idx_2, idx_1), axis=None)
+
+        X_2 = X_mat[:, idx_2]
+
+        # repeat beta and phi values to simulate
+        beta_values = np.tile(beta_value, (B, 1))
+        phi_values = np.tile(phi_value, (B, 1))
+        # simulating Y matrix
+        Y_mat = self.simulator(beta_values, phi_values)
+
+        # looping across every observation in Y_mat
+        for i in range(B):
+            Y_sim = Y_mat[i, :]
             if self.kind_dist == "gamma":
                 if self.link_func == "log":
-                    shape_par = 1 / phi
-                    # computing sum of log likelihood
-                    log_l = np.sum(
-                        np.log(
-                            stats.gamma.pdf(
-                                Y_data.reshape(-1, 1),
-                                a=shape_par,
-                                scale=1
-                                / shape_par
-                                * np.exp(self.X_mat @ beta.reshape(-1, 1)),
-                            )
-                        )
-                    )
-            return log_l
+                    if fit_intercept:
+                        X_glm = self.X_mat[:, 1:]
+                    else:
+                        X_glm = self.X_mat
 
-        def simulator(self, beta_vec, phi_vec):
-            # computing linear component
-            linear_comp = beta_vec @ np.transpose(self.X_mat)
+                    # fitting complete and partial models
+                    complete_model = sm.GLM(
+                        Y_sim,
+                        X_glm,
+                        family=sm.families.Gamma(link=sm.families.links.log()),
+                    ).fit()
+
+                    partial_model = sm.GLM(
+                        Y_sim,
+                        X_2,
+                        family=sm.families.Gamma(link=sm.families.links.log()),
+                    ).fit()
+
+                    # obtaining the parameters from both models
+                    params_complete = complete_model.params
+                    params_partial = partial_model.params
+
+                    # obtaining params for testing
+                    params_test = np.concatenate((params_partial, beta_1))
+                    # reordering columns
+                    params_test = params_test[par_reorder]
+
+                    # adding intercept value if it is fixed
+                    if not fit_intercept:
+                        params_complete = np.concatenate(
+                            (intercept_value, params_complete)
+                        )
+                        params_test = np.concatenate((intercept_value, params_test))
+
+                    else:
+                        complete_model = sm.GLM(
+                            Y_sim,
+                            self.X_mat,
+                            family=sm.families.Gamma(link=sm.families.links.log()),
+                        ).fit()
+
+                    # obtaining betas
+                    params_complete = complete_model.params
+
+                    # computing both likelihoods
+                    # first for MLE
+                    phi_model = complete_model.scale
+
+                    mle_l = self.loglikelihood(
+                        beta=params_complete,
+                        phi=phi_model,
+                        Y_data=Y_sim,
+                    )
+
+                    # now under H0
+                    test_l = self.loglikelihood(
+                        beta=params_test,
+                        phi=phi_model,
+                        Y_data=Y_sim,
+                    )
+
+                    # computing LR statistic
+                    lambda_array[i] = 2 * (mle_l - test_l)
+            # TODO: implement for other distributions and link functions
+        return lambda_array
+
+    def LR_sample(self, B, idx_1, fit_intercept=True, intercept_value=None):
+        lambda_array = np.zeros(B)
+        # making some adjustments to compute statistics with
+        # nuisance parameters
+        beta_values, phi_values = self.prior(
+            B,
+            rng=self.rng,
+            intercept_value=intercept_value,
+            dim=self.dim,
+        )
+
+        if fit_intercept:
+            idxs = np.arange(0, beta_values.shape[1])
+        else:
+            idxs = np.arange(1, beta_values.shape[1])
+
+        idx_2 = np.setdiff1d(idxs, idx_1)
+        beta_1_vec = beta_values[:, idx_1]
+
+        par_reorder = np.concatenate((idx_2, idx_1), axis=None)
+
+        X_2 = self.X_mat[:, idx_2]
+        # simulating Y matrix
+        Y_mat = self.simulator(beta_values, phi_values)
+
+        for i in range(B):
+            Y_sim = Y_mat[i, :]
+            if beta_1_vec.ndim == 1:
+                beta_1 = beta_1_vec[i]
+            else:
+                beta_1 = beta_1_vec[i, :]
+
             if self.dist == "gamma":
                 if self.link_func == "log":
-                    shape_par = 1 / phi_vec
-                    Y_sim = rng.gamma(
-                        shape=shape_par,
-                        scale=1 / shape_par * np.exp(linear_comp),
+                    if not fit_intercept:
+                        X_glm = self.X_mat[:, 1:]
+                    else:
+                        X_glm = self.X_mat
+                    print(Y_sim)
+
+                    # fitting complete and partial models
+                    complete_model = sm.GLM(
+                        Y_sim,
+                        X_glm,
+                        family=sm.families.Gamma(link=sm.families.links.log()),
+                    ).fit()
+
+                    partial_model = sm.GLM(
+                        Y_sim,
+                        X_2,
+                        family=sm.families.Gamma(link=sm.families.links.log()),
+                    ).fit()
+
+                    # obtaining the parameters from both models
+                    params_complete = complete_model.params
+                    params_partial = partial_model.params
+
+                    # obtaining params for testing
+                    params_test = np.concatenate((params_partial, beta_1))
+                    # reordering columns
+                    params_test = params_test[par_reorder]
+
+                    # adding intercept value if it is fixed
+                    if not fit_intercept:
+                        params_complete = np.concatenate(
+                            (intercept_value, params_complete)
+                        )
+                        params_test = np.concatenate((intercept_value, params_test))
+
+                    else:
+                        complete_model = sm.GLM(
+                            Y_sim,
+                            self.X_mat,
+                            family=sm.families.Gamma(link=sm.families.links.log()),
+                        ).fit()
+
+                    # obtaining betas
+                    params_complete = complete_model.params
+
+                    # computing both likelihoods
+                    # first for MLE
+                    phi_model = complete_model.scale
+
+                    mle_l = self.loglikelihood(
+                        beta=params_complete,
+                        phi=phi_model,
+                        Y_data=Y_sim,
                     )
-            return Y_sim
 
-        # computing likelihood ratio for glm
-        def LR_sim_lambda(
-            self,
-            beta_value,
-            phi_value,
-            B,
-            X_mat,
-            idx_1,
-            fit_intercept=True,
-        ):
-            lambda_array = np.zeros(B)
-            if not fit_intercept:
-                intercept_value = beta_value[0]
-            # making some adjustments to compute statistics with parameters and # nuisance parameters
-            if fit_intercept:
-                idxs = np.arange(0, beta_value.shape[0])
-                idx_2 = np.setdiff1d(idxs, idx_1)
-            else:
-                idxs = np.arange(1, beta_value.shape[0])
-                idx_2 = np.setdiff1d(idxs, idx_1)
+                    # now under H0
+                    test_l = self.loglikelihood(
+                        beta=params_test,
+                        phi=phi_model,
+                        Y_data=Y_sim,
+                    )
 
-            beta_1 = beta_value[idx_1]
+                    # computing LR statistic
+                    lambda_array[i] = 2 * (mle_l - test_l)
 
-            par_reorder = np.concatenate((idx_2, idx_1), axis=None)
-
-            X_2 = X_mat[:, idx_2]
-
-            # repeat beta and phi values to simulate
-            beta_values = np.tile(beta_value, (B, 1))
-            phi_values = np.tile(phi_value, (B, 1))
-            # simulating Y matrix
-            Y_mat = self.simulator(beta_values, phi_values)
-
-            # looping across every observation in Y_mat
-            for i in range(B):
-                Y_sim = Y_mat[i, :]
-                if self.kind_dist == "gamma":
-                    if self.link_func == "log":
-                        if fit_intercept:
-                            X_glm = self.X_mat[:, 1:]
-                        else:
-                            X_glm = self.X_mat
-
-                        # fitting complete and partial models
-                        complete_model = sm.GLM(
-                            Y_sim,
-                            X_glm,
-                            family=sm.families.Gamma(link=sm.families.links.log()),
-                        ).fit()
-
-                        partial_model = sm.GLM(
-                            Y_sim,
-                            X_2,
-                            family=sm.families.Gamma(link=sm.families.links.log()),
-                        ).fit()
-
-                        # obtaining the parameters from both models
-                        params_complete = complete_model.params
-                        params_partial = partial_model.params
-
-                        # obtaining params for testing
-                        params_test = np.concatenate((params_partial, beta_1))
-                        # reordering columns
-                        params_test = params_test[par_reorder]
-
-                        # adding intercept value if it is fixed
-                        if not fit_intercept:
-                            params_complete = np.concatenate(
-                                (intercept_value, params_complete)
-                            )
-                            params_test = np.concatenate((intercept_value, params_test))
-
-                        else:
-                            complete_model = sm.GLM(
-                                Y_sim,
-                                self.X_mat,
-                                family=sm.families.Gamma(link=sm.families.links.log()),
-                            ).fit()
-
-                        # obtaining betas
-                        params_complete = complete_model.params
-
-                        # computing both likelihoods
-                        # first for MLE
-                        phi_model = complete_model.scale
-
-                        mle_l = self.loglikelihood(
-                            beta=params_complete,
-                            phi=phi_model,
-                            Y_data=Y_sim,
-                        )
-
-                        # now under H0
-                        test_l = self.loglikelihood(
-                            beta=params_test,
-                            phi=phi_model,
-                            Y_data=Y_sim,
-                        )
-
-                        # computing LR statistic
-                        lambda_array[i] = 2 * (mle_l - test_l)
-                # TODO: implement for other distributions and link functions
-            return lambda_array
-
-        def LR_sample(self, B, idx_1, fit_intercept=True, intercept_value=None):
-            lambda_array = np.zeros(B)
-            # making some adjustments to compute statistics with
-            # nuisance parameters
-            beta_values, phi_values = self.prior(
-                B,
-                intercept_value=intercept_value,
-                dim=self.dim,
-            )
-
-            if fit_intercept:
-                idxs = np.arange(0, beta_values.shape[1])
-            else:
-                idxs = np.arange(1, beta_values.shape[1])
-
-            idx_2 = np.setdiff1d(idxs, idx_1)
-            beta_1_vec = beta_values[:, idx_1]
-
-            par_reorder = np.concatenate((idx_2, idx_1), axis=None)
-
-            X_2 = X_mat[:, idx_2]
-            # simulating Y matrix
-            Y_mat = self.simulator(beta_values, phi_values)
-
-            for i in range(B):
-                Y_sim = Y_mat[i, :]
-                beta_1 = beta_1_vec[i, :]
-                if self.kind_dist == "gamma":
-                    if self.link_func == "log":
-                        if fit_intercept:
-                            X_glm = self.X_mat[:, 1:]
-                        else:
-                            X_glm = self.X_mat
-
-                        # fitting complete and partial models
-                        complete_model = sm.GLM(
-                            Y_sim,
-                            X_glm,
-                            family=sm.families.Gamma(link=sm.families.links.log()),
-                        ).fit()
-
-                        partial_model = sm.GLM(
-                            Y_sim,
-                            X_2,
-                            family=sm.families.Gamma(link=sm.families.links.log()),
-                        ).fit()
-
-                        # obtaining the parameters from both models
-                        params_complete = complete_model.params
-                        params_partial = partial_model.params
-
-                        # obtaining params for testing
-                        params_test = np.concatenate((params_partial, beta_1))
-                        # reordering columns
-                        params_test = params_test[par_reorder]
-
-                        # adding intercept value if it is fixed
-                        if not fit_intercept:
-                            params_complete = np.concatenate(
-                                (intercept_value, params_complete)
-                            )
-                            params_test = np.concatenate((intercept_value, params_test))
-
-                        else:
-                            complete_model = sm.GLM(
-                                Y_sim,
-                                self.X_mat,
-                                family=sm.families.Gamma(link=sm.families.links.log()),
-                            ).fit()
-
-                        # obtaining betas
-                        params_complete = complete_model.params
-
-                        # computing both likelihoods
-                        # first for MLE
-                        phi_model = complete_model.scale
-
-                        mle_l = self.loglikelihood(
-                            beta=params_complete,
-                            phi=phi_model,
-                            Y_data=Y_sim,
-                        )
-
-                        # now under H0
-                        test_l = self.loglikelihood(
-                            beta=params_test,
-                            phi=phi_model,
-                            Y_data=Y_sim,
-                        )
-
-                        # computing LR statistic
-                        lambda_array[i] = 2 * (mle_l - test_l)
-            return lambda_array
+        par_values = np.concatenate((beta_values, phi_values))
+        return par_values, lambda_array
 
 
 class Simulations:
