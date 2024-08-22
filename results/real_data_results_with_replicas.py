@@ -109,8 +109,7 @@ def compute_MAE_N_B(
                     + f"{kind}_{score_name}_eval_{N}.pickle",
                     "rb",
                 ) as f:
-                    stat = CPU_Unpickler(f).load()
-                stat_dict = stat.get(theta)
+                    stat_dict = CPU_Unpickler(f).load()
             else:
                 stat_dict = pd.read_pickle(
                     original_path
