@@ -106,7 +106,7 @@ def compute_MAE_N_B(
                 with open(
                     original_path
                     + stats_eval_path
-                    + f"{kind}_{score_name}_eval_{n}.pickle",
+                    + f"{kind}_{score_name}_eval_{N}.pickle",
                     "rb",
                 ) as f:
                     stat = CPU_Unpickler(f).load()
@@ -537,7 +537,7 @@ if __name__ == "__main__":
                         B=B_new,
                         using_cpu=cpu,
                         log_transf=True,
-                        seed = 250,
+                        seed=250,
                     )
                 elif kind == "two moons":
                     stats_data = compute_MAE_N_B(
