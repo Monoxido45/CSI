@@ -307,10 +307,13 @@ class ConformalLoforest(BaseEstimator):
             # else, use local cutoff
             else:
                 n = local_res.shape[0]
-
-                cutoffs[i] = np.quantile(
-                    local_res, q=np.ceil((n + 1) * (1 - self.alpha)) / n
-                )
+                # quantile correction only when using larger than 50 samples
+                if n >= 50:
+                    cutoffs[i] = np.quantile(
+                        local_res, q=np.ceil((n + 1) * (1 - self.alpha)) / n
+                    )
+                else:
+                    cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
 
         return cutoffs
 
