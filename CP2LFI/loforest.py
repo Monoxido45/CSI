@@ -297,11 +297,21 @@ class ConformalLoforest(BaseEstimator):
 
             # obtaining cutoff based on found residuals
             local_res = self.res_vector[obs_idx]
-            n = local_res.shape[0]
+            # checking if local_res is empty
+            # if it is, use global cutoff
+            if local_res.shape[0] == 0:
+                n = self.res_vector.shape[0]
+                cutoffs[i] = np.quantile(
+                    self.res_vector, q=np.ceil((n + 1) * (1 - self.alpha)) / n
+                )
+            # else, use local cutoff
+            else:
+                n = local_res.shape[0]
 
-            cutoffs[i] = np.quantile(
-                local_res, q=np.ceil((n + 1) * (1 - self.alpha)) / n
-            )
+                cutoffs[i] = np.quantile(
+                    local_res, q=np.ceil((n + 1) * (1 - self.alpha)) / n
+                )
+
         return cutoffs
 
     def predict(self, X):

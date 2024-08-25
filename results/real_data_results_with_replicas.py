@@ -381,6 +381,7 @@ if __name__ == "__main__":
     if not n_unique:
         stat_data_list = []
         print("Starting loop in n")
+        fixed_seed = int(input("Fix a seed: "))
         for n in n_list:
             for B in B_list:
                 print(f"Computing MAE for n = {n} and B = {B}")
@@ -395,6 +396,7 @@ if __name__ == "__main__":
                         B=B,
                         using_cpu=cpu,
                         log_transf=True,
+                        seed=fixed_seed,
                     )
                 elif kind == "two moons":
                     stats_data = compute_MAE_N_B(
@@ -407,6 +409,7 @@ if __name__ == "__main__":
                         B=B,
                         using_cpu=cpu,
                         two_moons=True,
+                        seed=fixed_seed,
                     )
                 else:
                     stats_data = compute_MAE_N_B(
@@ -418,6 +421,7 @@ if __name__ == "__main__":
                         N=n,
                         B=B,
                         using_cpu=cpu,
+                        seed=fixed_seed,
                     )
                 stats_data = stats_data.assign(B=B, N=n)
                 stat_data_list.append(stats_data)
@@ -434,6 +438,7 @@ if __name__ == "__main__":
         if not B_unique:
             B_complete = int(input("In which B did you stopped? "))
             B_list = B_list[np.where(B_list >= B_complete)]
+            fixed_seed = int(input("Fix a seed: "))
             if not completing:
                 for B in B_list:
                     print(f"Computing MAE for n = {n_new} and B = {B}")
@@ -448,6 +453,7 @@ if __name__ == "__main__":
                             B=B,
                             using_cpu=cpu,
                             log_transf=True,
+                            seed=fixed_seed,
                         )
                     elif kind == "two moons":
                         stats_data = compute_MAE_N_B(
@@ -460,6 +466,7 @@ if __name__ == "__main__":
                             B=B,
                             using_cpu=cpu,
                             two_moons=True,
+                            seed=fixed_seed,
                         )
                     else:
                         stats_data = compute_MAE_N_B(
@@ -471,6 +478,7 @@ if __name__ == "__main__":
                             N=n_new,
                             B=B,
                             using_cpu=cpu,
+                            seed=fixed_seed,
                         )
             else:
                 completing_seed = int(input("Fix your completing seed: "))
@@ -525,6 +533,7 @@ if __name__ == "__main__":
             B_new = int(input("Which B do you want to fix?"))
             print(f"Computing MAE for n = {n_new} and B = {B_new}")
             if not completing:
+                fixed_seed = int(input("Fix a seed: "))
                 if kind == "mg1":
                     stats_data = compute_MAE_N_B(
                         kind,
@@ -536,7 +545,7 @@ if __name__ == "__main__":
                         B=B_new,
                         using_cpu=cpu,
                         log_transf=True,
-                        seed=250,
+                        seed=fixed_seed,
                     )
                 elif kind == "two moons":
                     stats_data = compute_MAE_N_B(
@@ -549,6 +558,7 @@ if __name__ == "__main__":
                         B=B_new,
                         using_cpu=cpu,
                         two_moons=True,
+                        seed=fixed_seed,
                     )
                 else:
                     stats_data = compute_MAE_N_B(
@@ -560,6 +570,7 @@ if __name__ == "__main__":
                         N=n_new,
                         B=B_new,
                         using_cpu=cpu,
+                        seed=fixed_seed,
                     )
             else:
                 completing_seed = int(input("Fix your completing seed: "))

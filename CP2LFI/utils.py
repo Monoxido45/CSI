@@ -414,6 +414,15 @@ def obtain_quantiles_saved_tune(
         model_thetas.numpy(), X_net.numpy(), disable_tqdm=disable_tqdm
     )
 
+    # checking if there are any NaNs in training and printing and message
+    # if True, remove elements with nan
+    nan_lambda = np.isnan(model_lambdas)
+    sum_nan = np.sum(nan_lambda)
+    if sum_nan > 0:
+        print(f"Warning: simulated data has {sum_nan} nan values")
+        model_lambdas = model_lambdas[~nan_lambda]
+        model_thetas = model_thetas[~nan_lambda, :]
+
     locart_object = LocartSplit(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=split_calib
     )
