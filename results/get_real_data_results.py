@@ -92,24 +92,25 @@ stats_name = ["bff", "waldo", "e_value"]
 
 # kind dictionary
 kind_dict = {
-    "bff": ["sir", "tractable", "two moons", "weinberg", "mg1"],
-    "waldo": ["sir", "two moons", "weinberg", "mg1"],
+    "bff": ["sir", "two moons", "weinberg", "mg1", "tractable"],
+    "waldo": ["sir", "two moons", "weinberg", "mg1", "tractable"],
     "e_value": ["sir", "two moons", "weinberg", "mg1", "tractable"],
 }
 
 # n dictionary
 n_dict = {
-    "sir_bff": [1],
+    "sir_bff": [1, 5],
     "tractable_bff": [1, 5, 20],
-    "two moons_bff": [1, 5, 10, 20, 50],
-    "weinberg_bff": [1, 5, 10, 20, 50],
-    "mg1_bff": [1, 5, 10],
+    "two moons_bff": [1, 5, 10, 20],
+    "weinberg_bff": [1, 5, 10, 20],
+    "mg1_bff": [1, 5, 10, 20],
     "sir_waldo": [1],
     "two moons_waldo": [1, 5],
     "weinberg_waldo": [1, 5],
-    "mg1_waldo": [1],
+    "mg1_waldo": [1, 5, 10],
+    "tractable_waldo": [1, 5],
     "mg1_e_value": [1],
-    "weinberg_e_value": [1, 5, 10],
+    "weinberg_e_value": [1, 5, 10, 20],
     "two moons_e_value": [1],
     "tractable_e_value": [1],
     "sir_e_value": [1],
@@ -117,35 +118,57 @@ n_dict = {
 
 # B dictionary
 B_dict = {
-    "sir_bff_1": [1e4, 1.5e4, 2e4, 3e4],
+    # all bff entries
+    # sir
+    "sir_bff_1": [1e4, 1.5e4, 2e4, 3e4],  # n = 10 ,20
+    "sir_bff_5": [1e4, 1.5e4],
+    # tractable
     "tractable_bff_1": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_bff_5": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_bff_20": [1e4],
+    "tractable_bff_5": [1e4, 1.5e4, 2e4, 3e4],  # n = 10
+    "tractable_bff_20": [1e4, 1.5e4, 2e4],  # 3e4
+    # two moons (completed)
     "two moons_bff_1": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_bff_5": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_bff_10": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_bff_20": [1e4, 1.5e4, 2e4, 3e4],
-    "two moons_bff_50": [1e4, 1.5e4, 2e4, 3e4],
+    # weinberg (completed)
     "weinberg_bff_1": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_bff_5": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_bff_10": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_bff_20": [1e4, 1.5e4, 2e4, 3e4],
-    "weinberg_bff_50": [1e4, 1.5e4, 2e4, 3e4],
+    # mg1 (almost completed)
     "mg1_bff_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_bff_5": [1e4, 1.5e4, 2e4, 3e4],
-    "mg1_bff_10": [1e4, 1.5e4],
-    "sir_waldo_1": [1e4, 1.5e4],
-    "two moons_waldo_1": [1e4, 1.5e4],
-    "two moons_waldo_5": [1e4, 1.5e4],
+    "mg1_bff_10": [1e4, 1.5e4, 2e4, 3e4],  # n = 20
+    "mg1_bff_20": [1e4],
+    # all waldo entries
+    # sir
+    "sir_waldo_1": [1e4, 1.5e4],  # 2e4, 3e4
+    # two moons
+    "two moons_waldo_1": [1e4, 1.5e4],  # 2e4, 3e4
+    "two moons_waldo_5": [1e4, 1.5e4],  # 2e4, 3e4
+    # weinberg
     "weinberg_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_waldo_5": [1e4, 1.5e4],
-    "mg1_waldo_1": [1e4],
-    "mg1_e_value_1": [1e4],
+    # mg1
+    "mg1_waldo_1": [1e4, 1.5e4],
+    "mg1_waldo_5": [1e4],
+    "mg1_waldo_10": [1e4],
+    # tractable
+    "tractable_waldo_1": [1e4, 1.5e4],
+    # all e-value entries
+    # mg1
+    "mg1_e_value_1": [1e4, 1.5e4],  # 2e4, 3e4
+    # weinberg (completed)
     "weinberg_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
-    "two moons_e_value_1": [1e4, 1.5e4],
-    "tractable_e_value_1": [1e4, 1.5e4],
+    "weinberg_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
+    # two moons
+    "two moons_e_value_1": [1e4, 1.5e4],  # 2e4, 3e4
+    # tractable
+    "tractable_e_value_1": [1e4, 1.5e4],  # 2e3, 3e4
+    # sur
     "sir_e_value_1": [1e4],
 }
 

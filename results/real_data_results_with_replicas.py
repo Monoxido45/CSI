@@ -35,7 +35,6 @@ def compute_MAE_N_B(
     naive_n=500,
     disable_tqdm=True,
     seed=45,
-    n_lambda=300,
     log_transf=False,
     split_calib=False,
     using_beta=False,
@@ -121,25 +120,10 @@ def compute_MAE_N_B(
             l = 0
             for theta in theta_grid_eval:
                 if theta_grid_eval.ndim == 1:
-                    theta_repeated = (
-                        torch.tensor([theta])
-                        .reshape(1, -1)
-                        .repeat_interleave(repeats=n_lambda * N, dim=0)
-                    )
                     stat = stat_dict[theta]
                 else:
-                    theta_repeated = torch.tensor([theta]).repeat_interleave(
-                        repeats=n_lambda * N, dim=0
-                    )
                     theta = tuple(theta)
                     stat = stat_dict[theta]
-
-                # simulating lambdas for testing
-                X_net = simulator(theta_repeated)
-                if log_transf:
-                    X_net = torch.log(X_net)
-                X_dim = X_net.shape[1]
-                X_net = X_net.reshape(n_lambda, N * X_dim)
 
                 # stat = score.compute(
                 #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
@@ -239,25 +223,10 @@ def compute_MAE_N_B(
             l = 0
             for theta in theta_grid_eval:
                 if theta_grid_eval.ndim == 1:
-                    theta_repeated = (
-                        torch.tensor([theta])
-                        .reshape(1, -1)
-                        .repeat_interleave(repeats=n_lambda * N, dim=0)
-                    )
                     stat = stat_dict[theta]
                 else:
-                    theta_repeated = torch.tensor([theta]).repeat_interleave(
-                        repeats=n_lambda * N, dim=0
-                    )
                     theta = tuple(theta)
                     stat = stat_dict[theta]
-
-                # simulating lambdas for testing
-                X_net = simulator(theta_repeated)
-                if log_transf:
-                    X_net = torch.log(X_net)
-                X_dim = X_net.shape[1]
-                X_net = X_net.reshape(n_lambda, N * X_dim)
 
                 # stat = score.compute(
                 #     theta_repeated.numpy()[0:n_lambda, :], X_net.numpy(), disable_tqdm=True
