@@ -439,6 +439,9 @@ if __name__ == "__main__":
             B_list = B_list[np.where(B_list >= B_complete)]
             fixed_seed = int(input("Fix a seed: "))
             if not completing:
+                np.random.seed(fixed_seed)
+                seed_list = np.random.randint(0, 1780, B_list.shape[0])
+                i = 0
                 for B in B_list:
                     print(f"Computing MAE for n = {n_new} and B = {B}")
                     if kind == "mg1":
@@ -452,7 +455,7 @@ if __name__ == "__main__":
                             B=B,
                             using_cpu=cpu,
                             log_transf=True,
-                            seed=fixed_seed,
+                            seed=seed_list[i],
                         )
                     elif kind == "two moons":
                         stats_data = compute_MAE_N_B(
@@ -465,7 +468,7 @@ if __name__ == "__main__":
                             B=B,
                             using_cpu=cpu,
                             two_moons=True,
-                            seed=fixed_seed,
+                            seed=seed_list[i],
                         )
                     else:
                         stats_data = compute_MAE_N_B(
@@ -477,8 +480,9 @@ if __name__ == "__main__":
                             N=n_new,
                             B=B,
                             using_cpu=cpu,
-                            seed=fixed_seed,
+                            seed=seed_list[i],
                         )
+                    i += 1
             else:
                 completing_seed = int(input("Fix your completing seed: "))
                 for B in B_list:
