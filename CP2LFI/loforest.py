@@ -4,6 +4,7 @@ from copy import deepcopy
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
+from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 import scipy.stats as st
 
@@ -93,6 +94,7 @@ class ConformalLoforest(BaseEstimator):
         train_size=0.5,
         objective="mse_based",
         K=None,
+        fit_nuisance_tree=False,
         n_estimators=200,
         min_samples_leaf=100,
         min_impurity_decrease=0,
@@ -175,6 +177,14 @@ class ConformalLoforest(BaseEstimator):
             )
 
         self.RF.fit(X_calib_train, res_calib_train)
+
+        if fit_nuisance_tree:
+            self.nuisance_tree = DecisionTreeRegressor(
+                random_state=random_seed,
+                min_samples_leaf=min_samples_leaf,
+                min_impurity_decrease=min_impurity_decrease,
+            )
+            self.nuisance_tree.fit(X_calib_train, res_calib_train)
 
         if K is None:
             self.K = len(self.RF.estimators_) / 2
