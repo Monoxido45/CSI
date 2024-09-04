@@ -79,26 +79,14 @@ class GLM_stat:
         beta_value,
         phi_value,
         B,
-        X_mat,
         idx_1,
         fit_intercept=True,
     ):
         lambda_array = np.zeros(B)
         if not fit_intercept:
             intercept_value = beta_value[0]
-        # making some adjustments to compute statistics with parameters and # nuisance parameters
-        if fit_intercept:
-            idxs = np.arange(0, beta_value.shape[0])
-            idx_2 = np.setdiff1d(idxs, idx_1)
-        else:
-            idxs = np.arange(1, beta_value.shape[0])
-            idx_2 = np.setdiff1d(idxs, idx_1)
 
-        beta_1 = beta_value[idx_1]
-
-        par_reorder = np.concatenate((idx_2, idx_1), axis=None)
-
-        X_2 = X_mat[:, idx_2]
+        beta_1_vec = beta_value[idx_1]
 
         # repeat beta and phi values to simulate
         beta_values = np.tile(beta_value, (B, 1))
@@ -118,29 +106,33 @@ class GLM_stat:
                         X_glm = self.X_mat
                         offset_array = None
 
+                    if beta_1_vec.ndim == 0:
+                        beta_1 = np.array(beta_1_vec)
+                    else:
+                        beta_1 = beta_1_vec
+
                     # fitting complete and partial models
-                    complete_model = sm.GLM(
+                    glm_model = sm.GLM(
                         Y_sim,
                         X_glm,
                         family=sm.families.Gamma(link=sm.families.links.log()),
                         offset=offset_array,
-                    ).fit()
+                    )
 
-                    partial_model = sm.GLM(
-                        Y_sim,
-                        X_2,
-                        family=sm.families.Gamma(link=sm.families.links.log()),
-                        offset=offset_array,
-                    ).fit()
+                    complete_model = glm_model.fit()
+
+                    # fitting partial_model using fit_constrained
+                    # constructing R_mat
+                    R_mat = np.zeros((idx_1.shape[0], beta_values.shape[1]))
+                    R_mat[np.arange(0, idx_1.shape[0]), idx_1] = np.ones(idx_1.shape[0])
+                    # constructing q vector
+                    q_vec = beta_1
+
+                    partial_model = glm_model.fit_constrained((R_mat, q_vec))
 
                     # obtaining the parameters from both models
                     params_complete = complete_model.params
-                    params_partial = partial_model.params
-
-                    # obtaining params for testing
-                    params_test = np.concatenate((params_partial, beta_1))
-                    # reordering columns
-                    params_test = params_test[par_reorder]
+                    params_test = partial_model.params
 
                     # adding intercept value if it is fixed
                     if not fit_intercept:
@@ -250,8 +242,6 @@ class GLM_stat:
                         )
 
                     # computing both likelihoods
-                    print(params_test)
-                    print(params_complete)
                     # first for MLE
                     phi_model = complete_model.scale
                     # print(phi_model)
