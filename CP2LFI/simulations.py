@@ -90,16 +90,16 @@ class GLM_stat:
 
         # repeat beta and phi values to simulate
         beta_values = np.tile(beta_value, (B, 1))
-        phi_values = np.tile(phi_value, (B, 1))
+        phi_values = np.repeat(phi_value, B)
         # simulating Y matrix
         Y_mat = self.simulator(beta_values, phi_values)
 
         # looping across every observation in Y_mat
         for i in range(B):
             Y_sim = Y_mat[i, :]
-            if self.kind_dist == "gamma":
+            if self.dist == "gamma":
                 if self.link_func == "log":
-                    if fit_intercept:
+                    if not fit_intercept:
                         X_glm = self.X_mat[:, 1:]
                         offset_array = np.repeat(intercept_value, X_glm.shape[0])
                     else:
@@ -118,7 +118,6 @@ class GLM_stat:
                         family=sm.families.Gamma(link=sm.families.links.log()),
                         offset=offset_array,
                     )
-
                     complete_model = glm_model.fit()
 
                     # fitting partial_model using fit_constrained
