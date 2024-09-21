@@ -6,6 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
+from sklearn.manifold import MDS
+from sklearn.cluster import KMeans
+
 import scipy.stats as st
 
 
@@ -325,11 +328,66 @@ class ConformalLoforest(BaseEstimator):
                     cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
                 else:
                     cutoffs[i] = np.quantile(local_res, q=correction)
+#        print(cutoffs)
         return cutoffs
 
     def predict(self, X):
         cutoffs = self.compute_cutoffs(X)
         return self.nc_score.predict(X, cutoffs)
+    
+    def compute_cutoffs_clustering(self, X, breiman_mat=None):
+        # if weighting is enabled
+        if self.weighting:
+            w = self.compute_difficulty(X)
+            X_tree = np.concatenate((X, w.reshape(-1, 1)), axis=1)
+        else:
+            X_tree = X
+        # obtaining cutoffs for each X on the fly
+
+        # obtaining all leaves for all X's
+        if self.objective == "mse_based":
+            self.leaves_obs = self.RF.apply(X_tree)
+        else:
+            self.leaves_obs = self.bagging_apply(X_tree)
+
+        test_size = X_tree.shape[0]
+
+        # cutoffs array
+        cutoffs = np.zeros(test_size)
+
+        # computing breiman matrix
+        if breiman_mat is None:
+            breiman_matrix = self.compute_breiman_matrix(X_tree)
+        else:
+            breiman_matrix = breiman_mat
+
+        # apply mds
+        labels, centroids = apply_kmeans(breiman_matrix)
+
+        for i in np.unique(labels):
+            obs_idx = np.where(labels == i)[0]
+
+            # obtaining cutoff based on found residuals
+            local_res = self.res_vector[obs_idx]
+            # checking if local_res is empty
+            # if it is, use global cutoff
+            if local_res.shape[0] == 0:
+                n = self.res_vector.shape[0]
+                cutoffs[obs_idx] = np.quantile(
+                    self.res_vector, q=np.ceil((n + 1) * (1 - self.alpha)) / n
+                )
+            # else, use local cutoff
+            else:
+                n = local_res.shape[0]
+                # quantile correction only when n is large
+                # if correction is larger than 1, than use 1-alpha
+                correction = np.ceil((n + 1) * (1 - self.alpha)) / n
+
+                if correction > 1:
+                    cutoffs[obs_idx] = np.quantile(local_res, q=1 - self.alpha)
+                else:
+                    cutoffs[obs_idx] = np.quantile(local_res, q=correction)
+        return cutoffs
 
 
 def tune_loforest_LFI(
@@ -373,3 +431,20 @@ def tune_loforest_LFI(
     mae_array = np.mean(err_data, axis=0)
     # selecting K that minimizes validation error
     return K_grid[np.argmin(mae_array)]
+
+
+def apply_mds(distance_matrix, random_state=42):
+    embedding = MDS(
+        n_components=2,
+        normalized_stress='auto',
+        dissimilarity="euclidean",
+        random_state=random_state
+    )
+
+    return embedding.fit_transform(distance_matrix)
+
+
+def apply_kmeans(breiman_mat, n_clusters=10, random_state=42):
+    breiman_transf = apply_mds(breiman_mat)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(breiman_transf)
+    return kmeans.labels_, kmeans.cluster_centers_ 

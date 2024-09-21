@@ -442,6 +442,10 @@ def obtain_quantiles_saved_tune(
         K=K,
     )
 
+    cutoffs_clustering = loforest_object.compute_cutoffs_clustering(
+        model_thetas.numpy()
+    )
+
     # boosting quantiles
     model = HistGradientBoostingRegressor(
         loss="quantile",
@@ -503,6 +507,7 @@ def obtain_quantiles_saved_tune(
         "loforest_fixed": loforest_cutoffs,
         "loforest_tuned": loforest_tuned_cutoffs,
         "boosting": boosting_quantiles,
+        "MDS": cutoffs_clustering,
     }
 
     return quantile_dict, K_loforest
