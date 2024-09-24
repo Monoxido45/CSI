@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.base import BaseEstimator, clone
 from copy import deepcopy
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, silhouette_score
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
@@ -328,7 +328,6 @@ class ConformalLoforest(BaseEstimator):
                     cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
                 else:
                     cutoffs[i] = np.quantile(local_res, q=correction)
-#        print(cutoffs)
         return cutoffs
 
     def predict(self, X):
@@ -362,7 +361,7 @@ class ConformalLoforest(BaseEstimator):
             breiman_matrix = breiman_mat
 
         # apply mds
-        labels, centroids = apply_kmeans(breiman_matrix)
+        labels, centroids = apply_kmeans(breiman_matrix, optimize_k=True)
 
         for i in np.unique(labels):
             obs_idx = np.where(labels == i)[0]
@@ -444,7 +443,24 @@ def apply_mds(distance_matrix, random_state=42):
     return embedding.fit_transform(distance_matrix)
 
 
-def apply_kmeans(breiman_mat, n_clusters=10, random_state=42):
+def _tune_kmeans_k(breiman_transf):
+    # computing silhouette score for each K
+    sil_scores = []
+    for k in range(2, 120):
+        kmeans = KMeans(n_clusters=k, random_state=42).fit(breiman_transf)
+        sil_scores.append(silhouette_score(breiman_transf, kmeans.labels_))
+
+    best_k = np.argmax(sil_scores) + 2
+    print("KMeans best K: ", best_k)
+
+    return best_k
+
+
+def apply_kmeans(breiman_mat, optimize_k=True, n_clusters=10, random_state=42):
     breiman_transf = apply_mds(breiman_mat)
+
+    if optimize_k:
+        n_clusters = _tune_kmeans_k(breiman_transf)
+
     kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(breiman_transf)
     return kmeans.labels_, kmeans.cluster_centers_ 
