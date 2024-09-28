@@ -164,7 +164,7 @@ B_dict = {
     # mg1
     "mg1_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
-    "mg1_waldo_10": [1e4],
+    "mg1_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
     # tractable
     "tractable_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
