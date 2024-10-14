@@ -58,6 +58,10 @@ class GLM_stat:
 
         return log_l
 
+    def change_seed(self, new_rng):
+        self.rng = np.random.default_rng(new_rng)
+        return None
+
     def simulator(self, beta_vec, phi_vec):
         B, n = beta_vec.shape[0], self.X_mat.shape[0]
         # computing linear component
@@ -140,30 +144,19 @@ class GLM_stat:
                         )
                         params_test = np.concatenate((intercept_value, params_test))
 
-                    else:
-                        complete_model = sm.GLM(
-                            Y_sim,
-                            self.X_mat,
-                            family=sm.families.Gamma(link=sm.families.links.log()),
-                        ).fit()
-
-                    # obtaining betas
-                    params_complete = complete_model.params
-
                     # computing both likelihoods
                     # first for MLE
-                    phi_model = complete_model.scale
 
                     mle_l = self.loglikelihood(
                         beta=params_complete,
-                        phi=phi_model,
+                        phi=phi_value,
                         Y_data=Y_sim,
                     )
 
                     # now under H0
                     test_l = self.loglikelihood(
                         beta=params_test,
-                        phi=phi_model,
+                        phi=phi_value,
                         Y_data=Y_sim,
                     )
 
@@ -190,6 +183,7 @@ class GLM_stat:
 
         for i in range(B):
             Y_sim = Y_mat[i, :]
+            phi_value = phi_values[i]
             if beta_1_vec.ndim == 1:
                 beta_1 = np.array([beta_1_vec[i]])
             else:
@@ -241,20 +235,17 @@ class GLM_stat:
                         )
 
                     # computing both likelihoods
-                    # first for MLE
-                    phi_model = complete_model.scale
-                    # print(phi_model)
 
                     mle_l = self.loglikelihood(
                         beta=params_complete,
-                        phi=phi_model,
+                        phi=phi_value,
                         Y_data=Y_sim,
                     )
 
                     # now under H0
                     test_l = self.loglikelihood(
                         beta=params_test,
-                        phi=phi_model,
+                        phi=phi_value,
                         Y_data=Y_sim,
                     )
 

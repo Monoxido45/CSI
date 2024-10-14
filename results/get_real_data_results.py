@@ -101,7 +101,7 @@ kind_dict = {
 n_dict = {
     # bff
     "sir_bff": [1, 5, 10, 20],
-    "tractable_bff": [1, 5, 20],
+    "tractable_bff": [1, 5, 10, 20],
     "two moons_bff": [1, 5, 10, 20],
     "weinberg_bff": [1, 5, 10, 20],
     "mg1_bff": [1, 5, 10, 20],
@@ -109,28 +109,29 @@ n_dict = {
     "sir_waldo": [1, 5, 10],
     "two moons_waldo": [1, 5, 10, 20],
     "weinberg_waldo": [1, 5, 10, 20],
-    "mg1_waldo": [1, 5, 10],
-    "tractable_waldo": [1, 5],
+    "mg1_waldo": [1, 5, 10, 20],
+    "tractable_waldo": [1, 5, 20],
     # e-value
-    "mg1_e_value": [1, 5],
+    "mg1_e_value": [1, 5, 10],
     "weinberg_e_value": [1, 5, 10, 20],
     "two moons_e_value": [1, 5, 10, 20],
     "tractable_e_value": [1, 5],
-    "sir_e_value": [1, 5],
+    "sir_e_value": [1, 5, 10],
 }
 
 # B dictionary
 B_dict = {
     # all bff entries
     # sir (completed)
-    "sir_bff_1": [1e4, 1.5e4, 2e4, 3e4],  # n = 10 ,20
+    "sir_bff_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_bff_5": [1e4, 1.5e4, 2e4, 3e4],
     "sir_bff_10": [1e4, 1.5e4, 2e4, 3e4],
     "sir_bff_20": [1e4, 1.5e4, 2e4, 3e4],
-    # tractable (almost completed)
+    # tractable (completed)
     "tractable_bff_1": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_bff_5": [1e4, 1.5e4, 2e4, 3e4],  # n = 10
-    "tractable_bff_20": [1e4, 1.5e4, 2e4, 3e4],  # 3e4
+    "tractable_bff_5": [1e4, 1.5e4, 2e4, 3e4],
+    "tractable_bff_10": [1e4, 1.5e4, 2e4, 3e4],
+    "tractable_bff_20": [1e4, 1.5e4, 2e4, 3e4],
     # two moons (completed)
     "two moons_bff_1": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_bff_5": [1e4, 1.5e4, 2e4, 3e4],
@@ -165,13 +166,16 @@ B_dict = {
     "mg1_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
+    "mg1_waldo_20": [1e4, 1.5e4, 2e4],
     # tractable
     "tractable_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
+    "tractable_waldo_20": [1e4],
     # all e-value entries
     # mg1
-    "mg1_e_value_1": [1e4, 1.5e4, 2e4, 3e4],  # 2e4, 3e4
+    "mg1_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
+    "mg1_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
     # weinberg (completed)
     "weinberg_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
@@ -183,11 +187,12 @@ B_dict = {
     "two moons_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
     # tractable
-    "tractable_e_value_1": [1e4, 1.5e4],  # 2e3, 3e4
+    "tractable_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_e_value_5": [1e4, 1.5e4],
     # sir
     "sir_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
+    "sir_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
 }
 
 # grouping all measures together
