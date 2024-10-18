@@ -7,6 +7,7 @@ from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 import scipy.stats as st
+from scipy.stats import binom
 
 
 class ConformalLoforest(BaseEstimator):
@@ -272,7 +273,51 @@ class ConformalLoforest(BaseEstimator):
 
         return breiman_matrix
 
-    def compute_cutoffs(self, X, K=None, breiman_mat=None):
+    def quantile_CI(self, local_res, alpha=0.05):
+        """
+        Compute the confidence interval for a quantile.
+
+        Parameters:
+        local res (array): Local residuals.
+        Cutoff (float): Cutoff estimate
+        alpha (float): Significance level.
+
+        Returns:
+        dict: A dictionary containing the interval and the coverage.
+        """
+        n = local_res.shape[0]
+        q = 1 - self.alpha
+
+        # Search over a small range of upper and lower order statistics for the
+        # closest coverage to 1-alpha (but not less than it, if possible).
+        u = binom.ppf(1 - alpha / 2, n, q).astype(int) + np.arange(-2, 3) + 1
+        l = binom.ppf(alpha / 2, n, q).astype(int) + np.arange(-2, 3)
+        u[u > n] = np.iinfo(np.int64).max
+        l[l < 0] = np.iinfo(np.int64).min
+
+        coverage = np.array(
+            [[binom.cdf(b - 1, n, q) - binom.cdf(a - 1, n, q) for b in u] for a in l]
+        )
+
+        if np.max(coverage) < 1 - alpha:
+            i = np.argmax(coverage)
+        else:
+            i = np.argmin(coverage[coverage >= 1 - alpha])
+
+        # Return the order statistics
+        u = np.repeat(u, 5)[i]
+        l = np.repeat(l, 5)[i]
+
+        # ordering local res
+        order_local_res = np.sort(local_res)
+        # return interval
+        lim_inf, lim_sup = order_local_res[l], order_local_res[u]
+
+        return lim_inf, lim_sup
+
+    def compute_cutoffs(
+        self, X, K=None, breiman_mat=None, compute_CI=False, alpha_CI=0.05
+    ):
         # if weighting is enabled
         if self.weighting:
             w = self.compute_difficulty(X)
@@ -302,11 +347,15 @@ class ConformalLoforest(BaseEstimator):
         if K is None:
             K = self.K
 
+        if compute_CI:
+            lower_bound, upper_bound = np.zeros(test_size), np.zeros(test_size)
+
         for i in range(0, test_size):
             obs_idx = np.where(breiman_matrix[i, :] >= K)[0]
 
             # obtaining cutoff based on found residuals
             local_res = self.res_vector[obs_idx]
+
             # checking if local_res is empty
             # if it is, use global cutoff
             if local_res.shape[0] == 0:
@@ -325,7 +374,17 @@ class ConformalLoforest(BaseEstimator):
                     cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
                 else:
                     cutoffs[i] = np.quantile(local_res, q=correction)
-        return cutoffs
+
+            # if compute CI, obtaining also the upper and lower bound of CI
+            if compute_CI:
+                lower_bound[i], upper_bound[i] = self.quantile_CI(
+                    local_res, alpha=alpha_CI
+                )
+
+        if not compute_CI:
+            return cutoffs
+        else:
+            return cutoffs, lower_bound, upper_bound
 
     def predict(self, X):
         cutoffs = self.compute_cutoffs(X)
