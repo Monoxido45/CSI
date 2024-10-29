@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import os
 from pandas.api.types import CategoricalDtype
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 original_path = os.getcwd()
 folder_path = "/results/LFI_real_results/"
@@ -106,17 +109,17 @@ n_dict = {
     "weinberg_bff": [1, 5, 10, 20],
     "mg1_bff": [1, 5, 10, 20],
     # waldo
-    "sir_waldo": [1, 5, 10],
+    "sir_waldo": [1, 5, 10, 20],
     "two moons_waldo": [1, 5, 10, 20],
     "weinberg_waldo": [1, 5, 10, 20],
     "mg1_waldo": [1, 5, 10, 20],
-    "tractable_waldo": [1, 5, 20],
+    "tractable_waldo": [1, 5, 10, 20],
     # e-value
-    "mg1_e_value": [1, 5, 10],
+    "mg1_e_value": [1, 5, 10, 20],
     "weinberg_e_value": [1, 5, 10, 20],
     "two moons_e_value": [1, 5, 10, 20],
-    "tractable_e_value": [1, 5],
-    "sir_e_value": [1, 5, 10],
+    "tractable_e_value": [1, 5, 10, 20],
+    "sir_e_value": [1, 5, 10, 20],
 }
 
 # B dictionary
@@ -148,10 +151,11 @@ B_dict = {
     "mg1_bff_10": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_bff_20": [1e4, 1.5e4, 2e4, 3e4],
     # all waldo entries
-    # sir
+    # sir (completed)
     "sir_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
     "sir_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
+    "sir_waldo_20": [1e4, 1.5e4, 2e4, 3e4],
     # two moons (completed)
     "two moons_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
@@ -162,26 +166,28 @@ B_dict = {
     "weinberg_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_waldo_20": [1e4, 1.5e4, 2e4, 3e4],
-    # mg1
+    # mg1 (completed)
     "mg1_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
-    "mg1_waldo_20": [1e4, 1.5e4, 2e4],
-    # tractable
+    "mg1_waldo_20": [1e4, 1.5e4, 2e4, 3e4],
+    # tractable (completed)
     "tractable_waldo_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_waldo_5": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_waldo_20": [1e4],
+    "tractable_waldo_10": [1e4, 1.5e4, 2e4, 3e4],
+    "tractable_waldo_20": [1e4, 1.5e4, 2e4],
     # all e-value entries
-    # mg1
+    # mg1 (completed)
     "mg1_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "mg1_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
+    "mg1_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
     # weinberg (completed)
     "weinberg_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
     "weinberg_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
-    # two moons
+    # two moons (completed)
     "two moons_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "two moons_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
@@ -189,17 +195,20 @@ B_dict = {
     # tractable
     "tractable_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_e_value_5": [1e4, 1.5e4],
-    # sir
+    "tractable_e_value_10": [1e4, 1.5e4, 2e4],
+    "tractable_e_value_20": [1e4, 1.5e4],
+    # sir (completed)
     "sir_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "sir_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
+    "sir_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
 }
 
 # grouping all measures together
 all_measures = resume_all_methods(stats_name, kind_dict, n_dict, B_dict)
 
 method_custom_order = CategoricalDtype(
-    ["TRUST", "TRUST++ MV", "TRUST++ tuned", "boosting", "MC"],
+    ["TRUST++ tuned", "TRUST++ MV", "boosting", "TRUST", "MC"],
     ordered=True,
 )
 # estabilishing method as an categorical variable
@@ -270,16 +279,19 @@ filtered_data["method"].value_counts()
 
 
 # plotting as a function of B and N
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 # plotting object (if needed)
 plt.style.use("seaborn-white")
-sns.set_palette("tab10")
-plt.rcParams.update({"font.size": 12})
-
-# Set the style of the plot
 sns.set(style="ticks", font_scale=2.75)
+plt.rcParams.update({"font.size": 16})
+colors = [
+    "firebrick",
+    "darkblue",
+    "darkgreen",
+    "rebeccapurple",
+    "darkorange",
+    "goldenrod",
+]
+custom_palette = sns.set_palette(sns.color_palette(colors))
 
 # counting all of data
 method_counts = filtered_data.value_counts(["n", "B", "method"])
@@ -295,7 +307,7 @@ g = sns.catplot(
     row="B",
     legend=True,
     sharey=False,
-    palette="Set1",
+    palette=custom_palette,
     height=6,
     aspect=1,
 )
@@ -305,9 +317,189 @@ g.set_titles("n = {col_name}, B = {row_name}")
 g.set_ylabels("")
 g.set_xlabels("")
 g.tick_params(axis="x", rotation=75)
-g.fig.supylabel("Number of times each method performed better")
+g.fig.supylabel("Number of times each method performed better", fontsize=35, x=-0.005)
+
+
+count = 0
+for ax in g.axes.flatten():
+    if count >= 12:
+        for idx in [0, 1, 3]:
+            ax.get_xticklabels()[idx].set_fontweight("bold")
+    count += 1
 
 # Show the plot
 plt.tight_layout()
 
 g.savefig("results/figures/all_real_comparissons.pdf", format="pdf")
+
+# making now barplots for coverage distance
+# first, for distance < 0.05
+filtered_data_dist_05 = all_measures.query("MAE <= 0.05")
+value_counts_05 = filtered_data_dist_05["method"].value_counts()
+
+# now for distance < 0.04
+filtered_data_dist_04 = all_measures.query("MAE <= 0.035")
+value_counts_04 = filtered_data_dist_04["method"].value_counts()
+
+# now for distance < 0.02
+filtered_data_dist_02 = all_measures.query("MAE <= 0.02")
+value_counts_02 = filtered_data_dist_02["method"].value_counts()
+
+# now for distance < 0.01
+filtered_data_dist_01 = all_measures.query("MAE <= 0.0125")
+value_counts_01 = filtered_data_dist_01["method"].value_counts()
+
+df_lists = [
+    value_counts_05,
+    value_counts_04,
+    value_counts_02,
+    value_counts_01,
+    filtered_data_dist_05,
+    filtered_data_dist_04,
+    filtered_data_dist_02,
+    filtered_data_dist_01,
+]
+
+
+dist_list = [0.05, 0.035, 0.02, 0.0125, 0.05, 0.035, 0.02, 0.0125]
+
+sns.set(style="ticks", font_scale=2)
+plt.rcParams.update({"font.size": 14})
+colors = [
+    "firebrick",
+    "darkblue",
+    "darkgreen",
+    "rebeccapurple",
+    "darkorange",
+    "goldenrod",
+]
+custom_palette = sns.set_palette(sns.color_palette(colors))
+fig, axes = plt.subplots(2, 4, figsize=(20, 8))
+axes = axes.flatten()
+count = 0
+for ax, distance, df in zip(axes, dist_list, df_lists):
+    if count == 0:
+        ax.set_ylabel("Count")
+    elif count == 4:
+        ax.set_ylabel("MAE")
+    else:
+        ax.set_ylabel("")
+
+    if count <= 3:
+        sns.barplot(x=df.index, y=df.values, palette=custom_palette, ax=ax)
+        ax.set_title(r"$MAE \leq {}$".format(distance))
+        ax.set_xlabel("")
+        ax.set_xticks([])
+    else:
+        sns.boxplot(
+            data=df,
+            x="method",
+            y="MAE",
+            hue="method",
+            palette=custom_palette,
+            boxprops=dict(alpha=0.65),
+            ax=ax,
+        )
+        if count > 4:
+            ax.set_ylabel("")
+        ax.get_legend().remove()
+        ax.set_xlabel("Method")
+        ax.tick_params(axis="x", rotation=90)
+        for idx in [0, 1, 3]:
+            ax.get_xticklabels()[idx].set_fontweight("bold")
+
+    count += 1
+plt.tight_layout()
+plt.savefig("results/figures/method_counts_all_MAE_real.pdf", format="pdf")
+plt.show()
+
+
+######### Unused visualizations ##########
+# Making violinplot of total MAE
+sns.set(style="ticks", font_scale=2.75)
+plt.rcParams.update({"font.size": 16})
+plt.figure(figsize=(12, 8))
+colors = [
+    "firebrick",
+    "darkblue",
+    "darkgreen",
+    "rebeccapurple",
+    "darkorange",
+    "goldenrod",
+]
+custom_palette = sns.set_palette(sns.color_palette(colors))
+
+ax = sns.violinplot(
+    data=all_measures,
+    y="method",
+    x="MAE",
+    palette=custom_palette,
+    fill=False,
+    saturation=0.7,
+    cut=0,
+)
+plt.yticks(
+    ticks=range(len(method_custom_order.categories)),
+    labels=method_custom_order.categories,
+)
+plt.title("Distribution of MAE for Each Method")
+plt.ylabel("Method")
+plt.xlabel("MAE")
+plt.xticks(rotation=75)
+# changing alpha
+for patch in ax.collections:
+    patch.set_alpha(0.65)
+plt.tight_layout()
+plt.savefig("results/figures/MAE_violinplot_overall_real_data.pdf", format="pdf")
+plt.show()
+
+# making boxplot version
+plt.figure(figsize=(12, 8))
+sns.boxplot(
+    data=all_measures,
+    y="method",
+    x="MAE",
+    palette=custom_palette,
+    boxprops=dict(alpha=0.65),
+)
+plt.yticks(
+    ticks=range(len(method_custom_order.categories)),
+    labels=method_custom_order.categories,
+)
+plt.title("Distribution of MAE for Each Method")
+plt.ylabel("Method")
+plt.xlabel("MAE")
+plt.xticks(rotation=75)
+plt.tight_layout()
+plt.savefig("results/figures/MAE_boxplot_overall_real_data.pdf", format="pdf")
+plt.show()
+
+# boxplots for each n and B
+g = sns.catplot(
+    data=all_measures,
+    x="method",
+    y="MAE",
+    kind="box",
+    hue="method",
+    boxprops=dict(alpha=0.65),
+    col="n",
+    row="B",
+    legend=False,
+    sharey=False,
+    palette=custom_palette,
+    height=6,
+    aspect=1,
+)
+# Set the labels and titles
+g.set_titles("n = {col_name}, B = {row_name}")
+g.set_ylabels("")
+g.set_xlabels("")
+g.tick_params(axis="x", rotation=90)
+
+
+# Adjust the layout to put the y label outside of the graph
+g.fig.subplots_adjust(left=0.5)
+g.fig.supylabel("Mean Absolute Error regarding nominal coverage", fontsize=35, x=-0.005)
+g.set(yscale="log")
+plt.tight_layout()
+g.savefig("results/figures/MAE_boxplots_N_B_real.pdf", format="pdf")
