@@ -194,9 +194,9 @@ B_dict = {
     "two moons_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
     # tractable
     "tractable_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_e_value_5": [1e4, 1.5e4],
+    "tractable_e_value_5": [1e4, 1.5e4, 2e4],
     "tractable_e_value_10": [1e4, 1.5e4, 2e4],
-    "tractable_e_value_20": [1e4, 1.5e4],
+    "tractable_e_value_20": [1e4, 1.5e4, 2e4],
     # sir (completed)
     "sir_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
