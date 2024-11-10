@@ -196,7 +196,7 @@ B_dict = {
     "tractable_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
     "tractable_e_value_10": [1e4, 1.5e4, 2e4, 3e4],
-    "tractable_e_value_20": [1e4, 1.5e4, 2e4],
+    "tractable_e_value_20": [1e4, 1.5e4, 2e4, 3e4],
     # sir (completed)
     "sir_e_value_1": [1e4, 1.5e4, 2e4, 3e4],
     "sir_e_value_5": [1e4, 1.5e4, 2e4, 3e4],
@@ -214,12 +214,20 @@ method_custom_order = CategoricalDtype(
 # estabilishing method as an categorical variable
 all_measures["method"] = all_measures["method"].astype(method_custom_order)
 
+# new custom order
+new_custom_order = CategoricalDtype(
+    ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC"],
+    ordered=True,
+)
+
 # function to compare and number of times each method performed best
 # copying t_analysis from clover
 # filtering by the best methods
 filtered_data = all_measures.groupby(["n", "B", "stat", "kind"], as_index=False).apply(
     lambda df: df.nsmallest(n=1, columns="MAE", keep="all")
 )
+
+n_count = filtered_data.shape[0]
 
 # analysing whether other methods also configure as the best by
 for i in range(filtered_data.shape[0]):
@@ -286,8 +294,8 @@ plt.rcParams.update({"font.size": 16})
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
     "goldenrod",
 ]
@@ -296,6 +304,7 @@ custom_palette = sns.set_palette(sns.color_palette(colors))
 # counting all of data
 method_counts = filtered_data.value_counts(["n", "B", "method"])
 method_counts_data = method_counts.reset_index()
+method_counts_data["method"] = method_counts_data["method"].astype(new_custom_order)
 
 # Create a facet grid using catplot
 g = sns.catplot(
@@ -306,7 +315,7 @@ g = sns.catplot(
     col="n",
     row="B",
     legend=True,
-    sharey=False,
+    sharey=True,
     palette=custom_palette,
     height=6,
     aspect=1,
@@ -323,7 +332,7 @@ g.fig.supylabel("Number of times each method performed better", fontsize=35, x=-
 count = 0
 for ax in g.axes.flatten():
     if count >= 12:
-        for idx in [0, 1, 3]:
+        for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
     count += 1
 
@@ -333,21 +342,22 @@ plt.tight_layout()
 g.savefig("results/figures/all_real_comparissons.pdf", format="pdf")
 
 # making now barplots for coverage distance
+all_measures["method"] = all_measures["method"].astype(new_custom_order)
 # first, for distance < 0.05
 filtered_data_dist_05 = all_measures.query("MAE <= 0.05")
-value_counts_05 = filtered_data_dist_05["method"].value_counts()
+value_counts_05 = np.round(filtered_data_dist_05["method"].value_counts() / n_count, 2)
 
 # now for distance < 0.04
 filtered_data_dist_04 = all_measures.query("MAE <= 0.035")
-value_counts_04 = filtered_data_dist_04["method"].value_counts()
+value_counts_04 = np.round(filtered_data_dist_04["method"].value_counts() / n_count, 2)
 
 # now for distance < 0.02
 filtered_data_dist_02 = all_measures.query("MAE <= 0.02")
-value_counts_02 = filtered_data_dist_02["method"].value_counts()
+value_counts_02 = np.round(filtered_data_dist_02["method"].value_counts() / n_count, 2)
 
 # now for distance < 0.01
 filtered_data_dist_01 = all_measures.query("MAE <= 0.0125")
-value_counts_01 = filtered_data_dist_01["method"].value_counts()
+value_counts_01 = np.round(filtered_data_dist_01["method"].value_counts() / n_count, 2)
 
 df_lists = [
     value_counts_05,
@@ -368,8 +378,8 @@ plt.rcParams.update({"font.size": 14})
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
     "goldenrod",
 ]
@@ -379,7 +389,7 @@ axes = axes.flatten()
 count = 0
 for ax, distance, df in zip(axes, dist_list, df_lists):
     if count == 0:
-        ax.set_ylabel("Count")
+        ax.set_ylabel("Proportion")
     elif count == 4:
         ax.set_ylabel("MAE")
     else:
@@ -405,7 +415,7 @@ for ax, distance, df in zip(axes, dist_list, df_lists):
         ax.get_legend().remove()
         ax.set_xlabel("Method")
         ax.tick_params(axis="x", rotation=90)
-        for idx in [0, 1, 3]:
+        for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
 
     count += 1
@@ -422,8 +432,8 @@ plt.figure(figsize=(12, 8))
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
     "goldenrod",
 ]

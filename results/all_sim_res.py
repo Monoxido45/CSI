@@ -62,7 +62,7 @@ combined_df["methods"] = combined_df["methods"].cat.rename_categories(
     {
         "LOCART": "TRUST",
         "LOFOREST": "TRUST++ MV",
-        "tuned LOFOREST": "Tuned TRUST++",
+        "tuned LOFOREST": "TRUST++ tuned",
         "monte-carlo": "MC",
     }
 )
@@ -72,7 +72,7 @@ combined_df["methods"] = combined_df["methods"].cat.rename_categories(
 filtered_data = combined_df.groupby(
     ["N", "B", "Model", "Statistic"], as_index=False
 ).apply(lambda df: df.nsmallest(n=1, columns="MAE", keep="all"))
-
+n_methods = filtered_data.shape[0]
 
 for i in range(filtered_data.shape[0]):
     # selecting values for n, B, kind and stats
@@ -132,7 +132,7 @@ filtered_data["methods"].value_counts()
 
 # new custom order
 new_custom_order = CategoricalDtype(
-    ["Tuned TRUST++", "TRUST++ MV", "boosting", "TRUST", "MC", "asymptotic"],
+    ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC", "asymptotic"],
     ordered=True,
 )
 method_counts = filtered_data.value_counts(["N", "B", "methods"])
@@ -145,8 +145,8 @@ plt.rcParams.update({"font.size": 14})
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
     "goldenrod",
 ]
@@ -161,7 +161,7 @@ g = sns.catplot(
     col="N",
     row="B",
     legend=True,
-    sharey=False,
+    sharey=True,
     palette=custom_palette,
     height=6,
     aspect=1,
@@ -179,30 +179,39 @@ plt.tight_layout()
 count = 0
 for ax in g.axes.flatten():
     if count >= 18:
-        for idx in [0, 1, 3]:
+        for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
     count += 1
 
 g.savefig("results/figures/all_comparissons.pdf", format="pdf")
 
-
+# changing combined_df method
+combined_df["methods"] = combined_df["methods"].astype(new_custom_order)
 # making now barplots for coverage distance
 # avoiding BFF for comparing all methods to asymptotic
 # first, for distance < 0.05
 filtered_data_dist_05 = combined_df.query("MAE <= 0.05").query("Statistic != 'BFF'")
-value_counts_05 = filtered_data_dist_05["methods"].value_counts()
+value_counts_05 = np.round(
+    filtered_data_dist_05["methods"].value_counts() / n_methods, 2
+)
 
 # first, for distance < 0.035
 filtered_data_dist_04 = combined_df.query("MAE <= 0.035").query("Statistic != 'BFF'")
-value_counts_04 = filtered_data_dist_04["methods"].value_counts()
+value_counts_04 = np.round(
+    filtered_data_dist_04["methods"].value_counts() / n_methods, 2
+)
 
 # first, for distance < 0.02
 filtered_data_dist_03 = combined_df.query("MAE <= 0.02").query("Statistic != 'BFF'")
-value_counts_03 = filtered_data_dist_03["methods"].value_counts()
+value_counts_03 = np.round(
+    filtered_data_dist_03["methods"].value_counts() / n_methods, 2
+)
 
 # first, for distance < 0.01
 filtered_data_dist_02 = combined_df.query("MAE <= 0.01").query("Statistic != 'BFF'")
-value_counts_02 = filtered_data_dist_02["methods"].value_counts()
+value_counts_02 = np.round(
+    filtered_data_dist_02["methods"].value_counts() / n_methods, 2
+)
 
 df_lists = [
     value_counts_05,
@@ -222,8 +231,8 @@ plt.rcParams.update({"font.size": 14})
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
     "goldenrod",
 ]
@@ -233,7 +242,7 @@ axes = axes.flatten()
 count = 0
 for ax, distance, df in zip(axes, dist_list, df_lists):
     if count == 0:
-        ax.set_ylabel("Count")
+        ax.set_ylabel("Proportion")
     elif count == 4:
         ax.set_ylabel("MAE")
     else:
@@ -259,7 +268,7 @@ for ax, distance, df in zip(axes, dist_list, df_lists):
         ax.get_legend().remove()
         ax.set_xlabel("Method")
         ax.tick_params(axis="x", rotation=90)
-        for idx in [0, 1, 3]:
+        for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
     count += 1
 plt.tight_layout()
@@ -308,14 +317,13 @@ plt.rcParams.update({"font.size": 14})
 colors = [
     "firebrick",
     "darkblue",
-    "darkgreen",
     "rebeccapurple",
+    "darkgreen",
     "darkorange",
-    "goldenrod",
 ]
 
 new_drop_custom_order = CategoricalDtype(
-    ["Tuned TRUST++", "TRUST++ MV", "boosting", "TRUST", "MC"],
+    ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC"],
     ordered=True,
 )
 
@@ -353,7 +361,7 @@ for ax, distance, df in zip(axes, dist_list, df_lists):
         ax.get_legend().remove()
         ax.set_xlabel("Method")
         ax.tick_params(axis="x", rotation=90)
-        for idx in [0, 1, 3]:
+        for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
     count += 1
 plt.tight_layout()
