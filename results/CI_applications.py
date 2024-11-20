@@ -122,19 +122,6 @@ K_loforest = tune_loforest_LFI(
     K_grid=K_grid,
 )
 
-# fitting monte-carlo
-naive_quantiles = naive(
-    kind=kind,
-    simulator=simulator,
-    score=score,
-    alpha=alpha,
-    B=B,
-    N=n,
-    naive_n=naive_n,
-    disable_tqdm=True,
-    disable_tqdm_naive=False,
-)
-
 
 # obtaining intervals for specific sample
 torch.manual_seed(75)
@@ -155,11 +142,15 @@ idxs = locart_object.cart.apply(model_eval)
 list_locart_quantiles = [locart_quantiles[idx] for idx in idxs]
 locart_cutoffs = np.array(list_locart_quantiles)
 
-# loforest
-loforest_cutoffs = loforest_object.compute_cutoffs(model_eval)
+# loforest and CI for loforest
+loforest_cutoffs, lower_trust_plus, upper_trust_plus = loforest_object.compute_cutoffs(
+    model_eval, compute_CI=True
+)
 
 # tuned loforest
-loforest_tuned_cutoffs = loforest_object.compute_cutoffs(model_eval, K=K_loforest)
+loforest_tuned_cutoffs, lower_tuned_trust_plus, upper_tuned_trust_plus = (
+    loforest_object.compute_cutoffs(model_eval, compute_CI=True, K=K_loforest)
+)
 
 # evaluating regions according to sample
 repeated_true_thetas = (
@@ -179,6 +170,8 @@ lambdas_eval = score.compute(
     N=500,
 )
 
+
+######### if oracle is not computed
 # computing oracle cutoffs
 theta_oracle = np.repeat(theta_grid, 100 * n, axis=0)
 X_oracle = simulator(theta_oracle)
@@ -204,7 +197,7 @@ for i in range(theta_grid.shape[0]):
 with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "wb") as f:
     pickle.dump(oracle_cutoffs, f)
 
-
+############ If oracle is computed
 # Load the oracle cutoffs from the pickle file
 with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "rb") as f:
     oracle_cutoffs = pickle.load(f)
@@ -214,11 +207,19 @@ with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "rb
 TRUST_plus_MV_filter = np.where(lambdas_eval <= loforest_cutoffs)
 TRUST_plus_MV_conf = theta_grid[TRUST_plus_MV_filter]
 
-TRUST_plus_tuned_filter = np.where(lambdas_eval <= loforest_tuned_cutoffs)
-TRUST_plus_tuned_conf = theta_grid[TRUST_plus_tuned_filter]
-
 TRUST_filter = np.where(lambdas_eval <= locart_cutoffs)
 TRUST_conf = theta_grid[TRUST_filter]
+
+# getting uncertainty region
+accept_filter = np.where(lambdas_eval <= lower_trust_plus)
+rej_filter = np.where(lambdas_eval >= upper_trust_plus)
+agnostic_filter = np.where(
+    (lambdas_eval > lower_trust_plus) & (lambdas_eval < upper_trust_plus)
+)
+
+
+oracle_filter = np.where(lambdas_eval <= oracle_cutoffs)
+oracle_conf = theta_grid[oracle_filter]
 
 # Create a grid for plotting
 grid_y, grid_x = np.meshgrid(pars_2, pars_1)
@@ -226,20 +227,20 @@ grid_y, grid_x = np.meshgrid(pars_2, pars_1)
 # Initialize a grid for each method
 TRUST_grid = np.zeros(n_par**2)
 TRUST_plus_MV_grid = np.zeros(n_par**2)
-TRUST_plus_tuned_grid = np.zeros(n_par**2)
-naive_grid = np.zeros(n_par**2)
-boosting_grid = np.zeros(n_par**2)
+TRUST_plus_uncertainty = np.zeros(n_par**2)
+oracle_grid = np.zeros(n_par**2)
 
 # Fill the grids based on the confidence regions
 TRUST_grid[TRUST_filter] = 1
 TRUST_plus_MV_grid[TRUST_plus_MV_filter] = 1
-TRUST_plus_tuned_grid[TRUST_plus_tuned_filter] = 1
+oracle_grid[oracle_filter] = 1
+TRUST_plus_uncertainty[accept_filter] = 1
+TRUST_plus_uncertainty[agnostic_filter] = 1 / 2
 
 TRUST_grid = TRUST_grid.reshape(n_par, n_par)
 TRUST_plus_MV_grid = TRUST_plus_MV_grid.reshape(n_par, n_par)
-TRUST_plus_tuned_grid = TRUST_plus_tuned_grid.reshape(n_par, n_par)
-naive_grid = naive_grid.reshape(n_par, n_par)
-boosting_grid = boosting_grid.reshape(n_par, n_par)
+oracle_grid = oracle_grid.reshape(n_par, n_par)
+TRUST_plus_uncertainty = TRUST_plus_uncertainty.reshape(n_par, n_par)
 
 
 # Plotting the confidence regions as colored grids
@@ -247,51 +248,44 @@ from matplotlib import colors as c
 import seaborn as sns
 
 sns.set(style="ticks", font_scale=2)
-fig, axs = plt.subplots(2, 2, figsize=(15, 12))
+fig, axs = plt.subplots(1, 3, figsize=(12, 8))
 plt.rcParams.update({"font.size": 14})
 
-cMap1 = c.ListedColormap(["white", "rebeccapurple"])
-cMap2 = c.ListedColormap(["white", "darkred"])
-cMap3 = c.ListedColormap(["white", "darkgreen"])
-cMap4 = c.ListedColormap(["white", "darkorange"])
+cMap1 = c.ListedColormap(["white", "darkred"])
+cMap2 = c.ListedColormap(["white", "salmon", "maroon"])
+cMap3 = c.ListedColormap(["white", "darkgray"])
 
 # TRUST
-axs[0, 0].pcolormesh(grid_x, grid_y, TRUST_grid, alpha=0.65, cmap=cMap1)
-axs[0, 0].scatter(
-    theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
+axs[0].pcolormesh(grid_x, grid_y, TRUST_plus_MV_grid, alpha=0.675, cmap=cMap1)
+axs[0].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
 )
-axs[0, 0].set_title("Trust")
-axs[0, 0].set_ylabel(r"$\theta_1$")
-axs[0, 0].set_xlabel(r"$\theta_2$")
+axs[0].set_title("Trust++ tuned")
+axs[0].set_ylabel(r"$\theta_1$")
+axs[0].set_xlabel("")
 
 # TRUST++ Tuned
-axs[0, 1].pcolormesh(grid_x, grid_y, TRUST_plus_tuned_grid, alpha=0.65, cmap=cMap2)
-axs[0, 1].scatter(
-    theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
+axs[1].pcolormesh(grid_x, grid_y, TRUST_plus_uncertainty, alpha=0.675, cmap=cMap2)
+axs[1].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
 )
-axs[0, 1].set_title("Trust ++ Tuned")
-axs[0, 1].set_ylabel(r"$\theta_1$")
-axs[0, 1].set_xlabel(r"$\theta_2$")
+axs[1].set_title("Trust ++ uncertainty")
+axs[1].set_ylabel("")
+axs[1].set_xlabel(r"$\theta_2$")
 
-# Boosting
-axs[1, 0].pcolormesh(grid_x, grid_y, boosting_grid, alpha=0.65, cmap=cMap3)
-axs[1, 0].scatter(
-    theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
+# Oracle
+axs[2].pcolormesh(grid_x, grid_y, oracle_grid, alpha=0.675, cmap=cMap3)
+axs[2].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
 )
-axs[1, 0].set_title("Boosting")
-axs[1, 0].set_ylabel(r"$\theta_1$")
-axs[1, 0].set_xlabel(r"$\theta_2$")
+axs[2].set_title("Oracle")
+axs[2].set_ylabel("")
+axs[2].set_xlabel("")
 
-# MC
-axs[1, 1].pcolormesh(grid_x, grid_y, naive_grid, alpha=0.65, cmap=cMap4)
-axs[1, 1].scatter(
-    theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
-)
-axs[1, 1].set_title("MC")
-axs[1, 1].set_ylabel(r"$\theta_1$")
-axs[1, 1].set_xlabel(r"$\theta_2$")
+axs[1].set_yticklabels([])
+axs[2].set_yticklabels([])
 # Add a single legend for scatter points
-handles, labels = axs[0, 0].get_legend_handles_labels()
+handles, labels = axs[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.05), ncol=5)
 plt.tight_layout()
 plt.savefig(
