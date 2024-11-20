@@ -193,17 +193,22 @@ lambdas_oracle = score.compute(
 )
 
 oracle_cutoffs = np.zeros(theta_grid.shape[0])
-j = 0
-K = 100
+j, k = 0, 100
 alpha = 0.05
 for i in range(theta_grid.shape[0]):
-    oracle_cutoffs[i] = np.quantile(lambdas_oracle[j:K], q=1 - alpha)
+    oracle_cutoffs[i] = np.quantile(lambdas_oracle[j:k], q=1 - alpha)
     j += 100
-    K += 100
+    k += 100
 
 # Save the oracle cutoffs into a pickle file
 with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "wb") as f:
     pickle.dump(oracle_cutoffs, f)
+
+
+# Load the oracle cutoffs from the pickle file
+with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "rb") as f:
+    oracle_cutoffs = pickle.load(f)
+
 
 # getting confidence regions
 TRUST_plus_MV_filter = np.where(lambdas_eval <= loforest_cutoffs)
