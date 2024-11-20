@@ -23,7 +23,6 @@ import os
 # package to simulate from two moons
 import sbibm
 import pickle
-from scipy.spatial import ConvexHull
 
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
@@ -40,7 +39,7 @@ prior = task.get_prior()
 # Confidence region for two moons
 # parameters of simulation: n = 5 and B = 10k
 n = 20
-B = 1e4
+B = 1.5e4
 alpha = 0.05
 naive_n = 500
 kind, score_name = "two moons", "e_value"
@@ -138,12 +137,13 @@ naive_quantiles = naive(
 
 
 # obtaining intervals for specific sample
-torch.manual_seed(125)
-torch.cuda.manual_seed(125)
-n_par = 100
-pars_1 = np.linspace(-0.99, 0.99, n_par)
+torch.manual_seed(75)
+torch.cuda.manual_seed(75)
+n_par = 75
+pars_1 = np.linspace(0.14, 0.55, n_par)
+pars_2 = np.linspace(-0.55, -0.14, n_par)
 theta_true = np.array([0.5, -0.25])
-theta_grid = np.c_[list(itertools.product(pars_1, pars_1))]
+theta_grid = np.c_[list(itertools.product(pars_1, pars_2))]
 
 # computing cutoffs
 if theta_grid.ndim == 1:
@@ -160,11 +160,6 @@ loforest_cutoffs = loforest_object.compute_cutoffs(model_eval)
 
 # tuned loforest
 loforest_tuned_cutoffs = loforest_object.compute_cutoffs(model_eval, K=K_loforest)
-
-# boosting
-boosting_quantiles = boosting_model.predict(model_eval)
-
-naive_list = predict_naive_quantile(kind, theta_grid, naive_quantiles)
 
 # evaluating regions according to sample
 repeated_true_thetas = (
@@ -184,6 +179,32 @@ lambdas_eval = score.compute(
     N=500,
 )
 
+# computing oracle cutoffs
+theta_oracle = np.repeat(theta_grid, 100 * n, axis=0)
+X_oracle = simulator(theta_oracle)
+X_oracle = X_oracle.reshape(100 * theta_grid.shape[0], n * X_dim)
+theta_oracle = np.repeat(theta_grid, 100, axis=0)
+
+lambdas_oracle = score.compute(
+    theta_oracle,
+    X_oracle.numpy(),
+    disable_tqdm=False,
+    N=750,
+)
+
+oracle_cutoffs = np.zeros(theta_grid.shape[0])
+j = 0
+K = 100
+alpha = 0.05
+for i in range(theta_grid.shape[0]):
+    oracle_cutoffs[i] = np.quantile(lambdas_oracle[j:K], q=1 - alpha)
+    j += 100
+    K += 100
+
+# Save the oracle cutoffs into a pickle file
+with open(original_path + "/results/" + f"{kind}_oracle_cutoffs_{n}.pickle", "wb") as f:
+    pickle.dump(oracle_cutoffs, f)
+
 # getting confidence regions
 TRUST_plus_MV_filter = np.where(lambdas_eval <= loforest_cutoffs)
 TRUST_plus_MV_conf = theta_grid[TRUST_plus_MV_filter]
@@ -194,14 +215,8 @@ TRUST_plus_tuned_conf = theta_grid[TRUST_plus_tuned_filter]
 TRUST_filter = np.where(lambdas_eval <= locart_cutoffs)
 TRUST_conf = theta_grid[TRUST_filter]
 
-naive_filter = np.where(lambdas_eval <= np.array(naive_list))
-naive_conf = theta_grid[naive_filter]
-
-boosting_filter = np.where(lambdas_eval <= boosting_quantiles)
-boosting_conf = theta_grid[boosting_filter]
-
 # Create a grid for plotting
-grid_x, grid_y = np.meshgrid(pars_1, pars_1)
+grid_y, grid_x = np.meshgrid(pars_2, pars_1)
 
 # Initialize a grid for each method
 TRUST_grid = np.zeros(n_par**2)
@@ -214,8 +229,6 @@ boosting_grid = np.zeros(n_par**2)
 TRUST_grid[TRUST_filter] = 1
 TRUST_plus_MV_grid[TRUST_plus_MV_filter] = 1
 TRUST_plus_tuned_grid[TRUST_plus_tuned_filter] = 1
-naive_grid[naive_filter] = 1
-boosting_grid[boosting_filter] = 1
 
 TRUST_grid = TRUST_grid.reshape(n_par, n_par)
 TRUST_plus_MV_grid = TRUST_plus_MV_grid.reshape(n_par, n_par)
@@ -238,7 +251,7 @@ cMap3 = c.ListedColormap(["white", "darkgreen"])
 cMap4 = c.ListedColormap(["white", "darkorange"])
 
 # TRUST
-axs[0, 0].pcolormesh(grid_y, grid_x, TRUST_grid, alpha=0.65, cmap=cMap1)
+axs[0, 0].pcolormesh(grid_x, grid_y, TRUST_grid, alpha=0.65, cmap=cMap1)
 axs[0, 0].scatter(
     theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
 )
@@ -247,7 +260,7 @@ axs[0, 0].set_ylabel(r"$\theta_1$")
 axs[0, 0].set_xlabel(r"$\theta_2$")
 
 # TRUST++ Tuned
-axs[0, 1].pcolormesh(grid_y, grid_x, TRUST_plus_tuned_grid, alpha=0.65, cmap=cMap2)
+axs[0, 1].pcolormesh(grid_x, grid_y, TRUST_plus_tuned_grid, alpha=0.65, cmap=cMap2)
 axs[0, 1].scatter(
     theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
 )
@@ -256,7 +269,7 @@ axs[0, 1].set_ylabel(r"$\theta_1$")
 axs[0, 1].set_xlabel(r"$\theta_2$")
 
 # Boosting
-axs[1, 0].pcolormesh(grid_y, grid_x, boosting_grid, alpha=0.65, cmap=cMap3)
+axs[1, 0].pcolormesh(grid_x, grid_y, boosting_grid, alpha=0.65, cmap=cMap3)
 axs[1, 0].scatter(
     theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
 )
@@ -265,7 +278,7 @@ axs[1, 0].set_ylabel(r"$\theta_1$")
 axs[1, 0].set_xlabel(r"$\theta_2$")
 
 # MC
-axs[1, 1].pcolormesh(grid_y, grid_x, naive_grid, alpha=0.65, cmap=cMap4)
+axs[1, 1].pcolormesh(grid_x, grid_y, naive_grid, alpha=0.65, cmap=cMap4)
 axs[1, 1].scatter(
     theta_true[0], theta_true[1], color="black", label=r"True $\theta$", s=5
 )
