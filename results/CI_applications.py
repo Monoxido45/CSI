@@ -98,6 +98,19 @@ boosting_model = HistGradientBoostingRegressor(
 )
 boosting_model.fit(model_thetas.numpy(), model_lambdas)
 
+# fitting monte-carlo
+naive_quantiles = naive(
+    kind=kind,
+    simulator=simulator,
+    score=score,
+    alpha=alpha,
+    B=B,
+    N=n,
+    naive_n=naive_n,
+    disable_tqdm=True,
+    disable_tqdm_naive=False,
+)
+
 # importing tuning samples
 # first, importing theta_tune object
 theta_tune = pd.read_pickle(original_path + tune_path + f"{kind}_theta_tune_{n}.pickle")
@@ -152,6 +165,9 @@ loforest_tuned_cutoffs, lower_tuned_trust_plus, upper_tuned_trust_plus = (
     loforest_object.compute_cutoffs(model_eval, compute_CI=True, K=K_loforest)
 )
 
+boosting_quantiles = boosting_model.predict(model_eval)
+naive_list = predict_naive_quantile(kind, theta_grid, naive_quantiles)
+
 # evaluating regions according to sample
 repeated_true_thetas = (
     torch.from_numpy(theta_true).reshape(1, 2).repeat_interleave(repeats=n, dim=0)
@@ -169,7 +185,6 @@ lambdas_eval = score.compute(
     disable_tqdm=False,
     N=500,
 )
-
 
 ######### if oracle is not computed
 # computing oracle cutoffs
@@ -210,13 +225,18 @@ TRUST_plus_MV_conf = theta_grid[TRUST_plus_MV_filter]
 TRUST_filter = np.where(lambdas_eval <= locart_cutoffs)
 TRUST_conf = theta_grid[TRUST_filter]
 
+naive_filter = np.where(lambdas_eval <= np.array(naive_list))
+naive_conf = theta_grid[naive_filter]
+
+boosting_filter = np.where(lambdas_eval <= boosting_quantiles)
+boosting_conf = theta_grid[boosting_filter]
+
 # getting uncertainty region
 accept_filter = np.where(lambdas_eval <= lower_trust_plus)
 rej_filter = np.where(lambdas_eval >= upper_trust_plus)
 agnostic_filter = np.where(
     (lambdas_eval > lower_trust_plus) & (lambdas_eval < upper_trust_plus)
 )
-
 
 oracle_filter = np.where(lambdas_eval <= oracle_cutoffs)
 oracle_conf = theta_grid[oracle_filter]
@@ -226,6 +246,8 @@ grid_y, grid_x = np.meshgrid(pars_2, pars_1)
 
 # Initialize a grid for each method
 TRUST_grid = np.zeros(n_par**2)
+boosting_grid = np.zeros(n_par**2)
+naive_grid = np.zeros(n_par**2)
 TRUST_plus_MV_grid = np.zeros(n_par**2)
 TRUST_plus_uncertainty = np.zeros(n_par**2)
 oracle_grid = np.zeros(n_par**2)
@@ -233,6 +255,8 @@ oracle_grid = np.zeros(n_par**2)
 # Fill the grids based on the confidence regions
 TRUST_grid[TRUST_filter] = 1
 TRUST_plus_MV_grid[TRUST_plus_MV_filter] = 1
+boosting_grid[boosting_filter] = 1
+naive_grid[naive_filter] = 1
 oracle_grid[oracle_filter] = 1
 TRUST_plus_uncertainty[accept_filter] = 1
 TRUST_plus_uncertainty[agnostic_filter] = 1 / 2
@@ -240,6 +264,8 @@ TRUST_plus_uncertainty[agnostic_filter] = 1 / 2
 TRUST_grid = TRUST_grid.reshape(n_par, n_par)
 TRUST_plus_MV_grid = TRUST_plus_MV_grid.reshape(n_par, n_par)
 oracle_grid = oracle_grid.reshape(n_par, n_par)
+boosting_grid = boosting_grid.reshape(n_par, n_par)
+naive_grid = naive_grid.reshape(n_par, n_par)
 TRUST_plus_uncertainty = TRUST_plus_uncertainty.reshape(n_par, n_par)
 
 
@@ -248,47 +274,130 @@ from matplotlib import colors as c
 import seaborn as sns
 
 sns.set(style="ticks", font_scale=2)
-fig, axs = plt.subplots(1, 3, figsize=(12, 8))
+fig, axs = plt.subplots(2, 3, figsize=(12, 8))
 plt.rcParams.update({"font.size": 14})
 
 cMap1 = c.ListedColormap(["white", "darkred"])
 cMap2 = c.ListedColormap(["white", "salmon", "maroon"])
 cMap3 = c.ListedColormap(["white", "darkgray"])
+cMap4 = c.ListedColormap(["white", "darkgreen"])
+cMap5 = c.ListedColormap(["white", "darkorange"])
 
 # TRUST
-axs[0].pcolormesh(grid_x, grid_y, TRUST_plus_MV_grid, alpha=0.675, cmap=cMap1)
-axs[0].scatter(
-    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
+axs[0, 0].pcolormesh(grid_x, grid_y, TRUST_plus_MV_grid, alpha=0.675, cmap=cMap1)
+axs[0, 0].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=15
 )
-axs[0].set_title("Trust++ tuned")
-axs[0].set_ylabel(r"$\theta_1$")
-axs[0].set_xlabel("")
+axs[0, 0].set_title("Trust++ tuned")
+axs[0, 0].set_ylabel("")
+axs[0, 0].set_xlabel("")
 
 # TRUST++ Tuned
-axs[1].pcolormesh(grid_x, grid_y, TRUST_plus_uncertainty, alpha=0.675, cmap=cMap2)
-axs[1].scatter(
-    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
+axs[0, 1].pcolormesh(grid_x, grid_y, TRUST_plus_uncertainty, alpha=0.675, cmap=cMap2)
+axs[0, 1].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=15
 )
-axs[1].set_title("Trust ++ uncertainty")
-axs[1].set_ylabel("")
-axs[1].set_xlabel(r"$\theta_2$")
+axs[0, 1].set_title("Trust ++ uncertainty")
+axs[0, 1].set_ylabel("")
+axs[0, 1].set_xlabel("")
 
 # Oracle
-axs[2].pcolormesh(grid_x, grid_y, oracle_grid, alpha=0.675, cmap=cMap3)
-axs[2].scatter(
-    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=12
+axs[0, 2].pcolormesh(grid_x, grid_y, oracle_grid, alpha=0.675, cmap=cMap3)
+axs[0, 2].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=15
 )
-axs[2].set_title("Oracle")
-axs[2].set_ylabel("")
-axs[2].set_xlabel("")
+axs[0, 2].set_title("Oracle")
+axs[0, 2].set_ylabel("")
+axs[0, 2].set_xlabel("")
 
-axs[1].set_yticklabels([])
-axs[2].set_yticklabels([])
+# Boosting
+axs[1, 0].pcolormesh(grid_x, grid_y, boosting_grid, alpha=0.675, cmap=cMap4)
+axs[1, 0].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=15
+)
+axs[1, 0].set_title("Boosting")
+axs[1, 0].set_ylabel("")
+axs[1, 0].set_xlabel("")
+
+# Oracle
+axs[1, 1].pcolormesh(grid_x, grid_y, naive_grid, alpha=0.675, cmap=cMap5)
+axs[1, 1].scatter(
+    theta_true[0], theta_true[1], marker="x", color="blue", label=r"True $\theta$", s=15
+)
+axs[1, 1].set_title("Monte-Carlo")
+axs[1, 1].set_ylabel("")
+axs[1, 1].set_xlabel("")
+
+# Remove the axis [1, 2] plot
+fig.delaxes(axs[1, 2])
+
+axs[0, 0].set_xticklabels([])
+axs[0, 1].set_xticklabels([])
+axs[0, 1].set_yticklabels([])
+axs[0, 2].set_yticklabels([])
+axs[1, 1].set_yticklabels([])
+
+fig.supxlabel(r"$\theta_1$")
+fig.supylabel(r"$\theta_2$")
+
 # Add a single legend for scatter points
-handles, labels = axs[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.05), ncol=5)
+handles, labels = axs[0, 0].get_legend_handles_labels()
+fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.065), ncol=2)
 plt.tight_layout()
 plt.savefig(
     "results/figures/CI_e_value_two_moons.pdf", format="pdf", bbox_inches="tight"
 )
 plt.show()
+
+# probability of coverage
+torch.manual_seed(780)
+torch.cuda.manual_seed(780)
+n_prob = 1250
+theta_true_repeat = np.repeat(theta_true.reshape(1, -1), n_prob * n, axis=0)
+# simulating X
+X_theta_true = simulator(theta_true_repeat)
+X_theta_true = X_theta_true.reshape(n_prob, n * X_dim)
+theta_repeat = np.repeat(theta_true.reshape(1, -1), n_prob, axis=0)
+
+lambdas_true = score.compute(
+    theta_repeat,
+    X_theta_true.numpy(),
+    disable_tqdm=False,
+    N=1000,
+)
+
+TRUST_plus_cutoff = loforest_object.compute_cutoffs(theta_true.reshape(1, -1))
+naive_cutoff = predict_naive_quantile(kind, theta_true.reshape(1, -1), naive_quantiles)
+boosting_cutoff = boosting_model.predict(theta_true.reshape(1, -1))
+
+# computing prob of coverage
+TRUST_plus_cover = np.mean(lambdas_true <= TRUST_plus_cutoff[0])
+boosting_cover = np.mean(lambdas_true <= boosting_cutoff[0])
+naive_cover = np.mean(lambdas_true <= naive_cutoff[0])
+
+import seaborn as sns
+
+# Create a figure with subplots
+fig, axs = plt.figure(figsize=(10, 6))
+colors = [
+    "darkorange",
+    "darkgreen",
+    "firebrick",
+]
+custom_palette = sns.set_palette(sns.color_palette(colors))
+
+# List of dataframes and titles
+data = pd.DataFrame(
+    {
+        "cover": [naive_cover, boosting_cover, TRUST_plus_cover],
+        "method": ["MC", "Boosting", "TRUST++"],
+    }
+)
+sns.barplot(x="method", y="cover", data=data, palette=custom_palette)
+plt.axhline(0.95, linestyle="--", color="black")
+plt.ylim(0.9, 1)
+plt.xlabel("Methods")
+plt.ylabel("Probability of coverage")
+plt.rcParams.update({"font.size": 16})
+plt.show()
+fig.savefig("results/figures/prob_of_coverage_two_moons.pdf", format="pdf")
