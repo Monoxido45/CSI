@@ -423,6 +423,49 @@ plt.tight_layout()
 plt.savefig("results/figures/method_counts_all_MAE_real.pdf", format="pdf")
 plt.show()
 
+########### Supplementary material visualizations #############
+stats_list = ["bff", "waldo", "e_value"]
+model_list = ["sir", "two moons", "weinberg", "mg1", "tractable"]
+
+colors = [
+    "firebrick",
+    "darkblue",
+    "rebeccapurple",
+    "darkgreen",
+    "darkorange",
+]
+custom_palette = sns.color_palette(colors)
+
+new_custom_order = CategoricalDtype(
+    ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC"],
+    ordered=True,
+)
+
+for stat_sel in stats_list:
+    for model in model_list:
+        df_sel = all_measures.query("stat == @stat_sel").query("kind == @model")
+        df_sel["method"] = df_sel["method"].astype(new_custom_order)
+        sns.set(style="ticks", font_scale=2)
+        plt.rcParams.update({"font.size": 14})
+        g = sns.FacetGrid(
+            df_sel,
+            col="n",
+            col_wrap=2,
+            height=6,
+            aspect=1.50,
+            hue="method",
+            palette=custom_palette,
+            margin_titles=True,
+            sharey=False,
+        )
+        g.map(plt.errorbar, "B", "MAE", "SE", fmt="-o")
+        g.add_legend()
+
+        # savefigure
+        plt.savefig(
+            f"results/sup_figures/{stat_sel}_{model}_MAE_plot.pdf", format="pdf"
+        )
+
 
 ######### Unused visualizations ##########
 # Making violinplot of total MAE

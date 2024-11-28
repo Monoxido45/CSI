@@ -368,6 +368,70 @@ plt.tight_layout()
 plt.savefig("results/figures/method_counts_all_MAE_without_asymp.pdf", format="pdf")
 plt.show()
 
+########### Supplementary material visualizations #############
+stats_list = ["KS", "e_value", "LR", "BFF"]
+model_list = ["lognormal", "gmm", "1dnormal"]
+
+for stat in stats_list:
+    for model in model_list:
+        if stat != "BFF":
+            colors = [
+                "firebrick",
+                "darkblue",
+                "rebeccapurple",
+                "darkgreen",
+                "darkorange",
+                "goldenrod",
+            ]
+            custom_palette = sns.color_palette(colors)
+
+            new_custom_order = CategoricalDtype(
+                [
+                    "TRUST++ tuned",
+                    "TRUST++ MV",
+                    "TRUST",
+                    "boosting",
+                    "MC",
+                    "asymptotic",
+                ],
+                ordered=True,
+            )
+        else:
+            colors = [
+                "firebrick",
+                "darkblue",
+                "rebeccapurple",
+                "darkgreen",
+                "darkorange",
+            ]
+            custom_palette = sns.color_palette(colors)
+
+            new_custom_order = CategoricalDtype(
+                ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC"],
+                ordered=True,
+            )
+
+        df_sel = combined_df.query("Statistic == @stat").query("Model == @model")
+        df_sel["methods"] = df_sel["methods"].astype(new_custom_order)
+        sns.set(style="ticks", font_scale=2)
+        plt.rcParams.update({"font.size": 14})
+        g = sns.FacetGrid(
+            df_sel,
+            col="N",
+            col_wrap=2,
+            height=6,
+            aspect=1.50,
+            hue="methods",
+            palette=custom_palette,
+            margin_titles=True,
+            sharey=False,
+        )
+        g.map(plt.errorbar, "B", "MAE", "se", fmt="-o")
+        g.add_legend()
+
+        # savefigure
+        plt.savefig(f"results/sup_figures/{stat}_{model}_MAE_plot.pdf", format="pdf")
+
 
 ######### Not used visualizations ##########
 # Making also boxplots and violinplots graphs for
