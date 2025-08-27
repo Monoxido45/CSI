@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest, tune_loforest_LFI
-from CP2LFI.scores import LambdaScore
-from CP2LFI.simulations import Simulations, naive, predict_naive_quantile
+from CSI.loforest import ConformalLoforest, tune_loforest_LFI
+from CSI.scores import LambdaScore
+from CSI.simulations import Simulations, naive, predict_naive_quantile
 
 
 from scipy import stats

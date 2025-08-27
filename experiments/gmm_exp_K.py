@@ -8,8 +8,8 @@ import pickle
 from multiprocessing import Pool
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest
-from CP2LFI.scores import LambdaScore
+from CSI.loforest import ConformalLoforest
+from CSI.scores import LambdaScore
 
 from clover import Scores
 from clover import LocartSplit
@@ -26,7 +26,9 @@ import os
 from os import path
 
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 # main functions to simulate and compute quantiles for gmm
 def sim_gmm(B, theta, rng):
@@ -36,11 +38,12 @@ def sim_gmm(B, theta, rng):
     )
     return X
 
+
 def sim_lambda(theta, rng, B=1000, N=100):
     lambdas = np.zeros(B)
     for i in range(0, B):
-      X = sim_gmm(B = N, theta = theta, rng = rng)
-      lambdas[i] = compute_lrt_statistic(theta, X)
+        X = sim_gmm(B=N, theta=theta, rng=rng)
+        lambdas[i] = compute_lrt_statistic(theta, X)
     return lambdas
 
 
@@ -75,7 +78,8 @@ def compute_lrt_statistic(theta_0, X, lower=0, upper=5):
     mle_theta = res.x
     lrt_stat = -2 * ((-l_func(theta_0, X)) - (-l_func(mle_theta, X)))
     return lrt_stat
-  
+
+
 # function to obtain all quantiles for a given B, sample size N and theta grid
 def obtain_quantiles(
     thetas,
@@ -87,7 +91,7 @@ def obtain_quantiles(
     n_estimators=200,
     K=40,
 ):
-  
+
     # simulating to fit loforest
     theta_sim, model_lambdas = sample_gmm(n=B, N=N, rng=rng)
     model_thetas = theta_sim.reshape(-1, 1)
@@ -108,11 +112,9 @@ def obtain_quantiles(
     loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
 
     # dictionary of quantiles
-    quantile_dict = {
-        "loforest": loforest_cutoffs
-    }
+    quantile_dict = {"loforest": loforest_cutoffs}
 
-    return quantile_dict  
+    return quantile_dict
 
 
 def compute_MAE_N(
@@ -158,19 +160,19 @@ def compute_MAE_N(
 
                 # comparing coverage of methods
                 loforest_cover = np.mean(lambda_stat <= quantiles_dict["loforest"][l])
-                
+
                 # appending the errors
                 err_loforest = np.abs(loforest_cover - (1 - alpha))
 
                 # saving in numpy array
-                err_data[l, :] = np.array(
-                    [err_loforest]
-                )
+                err_data[l, :] = np.array([err_loforest])
 
                 l += 1
 
-            mae_list.extend(np.mean(err_data, axis = 0).tolist())
-            se_list.extend((np.std(err_data, axis = 0)/np.sqrt(thetas.shape[0])).tolist())
+            mae_list.extend(np.mean(err_data, axis=0).tolist())
+            se_list.extend(
+                (np.std(err_data, axis=0) / np.sqrt(thetas.shape[0])).tolist()
+            )
             methods_list.extend(["LOFOREST"])
             N_list.extend([N_fixed])
             B_list.extend([B_fixed])
@@ -186,6 +188,7 @@ def compute_MAE_N(
         }
     )
     return stats_data
+
 
 original_path = os.getcwd()
 new_path = original_path + "/experiments/results_data/gmm_experiments/"
@@ -204,11 +207,11 @@ if __name__ == "__main__":
             B=np.array([500, 1000, 5000, 10000]),
             N=np.array([1, 10, 20, 50]),
             min_samples_leaf=300,
-            n_estimators = 200,
-            K = k,
+            n_estimators=200,
+            K=k,
             seed=1250,
         )
         print(f"Done for K = {k}")
-        
+
         with open(new_path + "cov_5000.pkl", "wb") as f:
-          pickle.dump(cov_5000, f)
+            pickle.dump(cov_5000, f)

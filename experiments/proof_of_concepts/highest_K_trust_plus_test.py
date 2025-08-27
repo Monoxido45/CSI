@@ -1,6 +1,6 @@
 from hypothesis.benchmark import weinberg
-from CP2LFI.loforest import ConformalLoforest
-from CP2LFI.scores import LambdaScore
+from CSI.loforest import ConformalLoforest
+from CSI.scores import LambdaScore
 import torch
 import numpy as np
 import os

@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="CP2LFI",
+    name="CSI",
     version="0.1",
     author="Luben Miguel Cruz Cabezas",
     author_email="lucruz45.cab@gmail.com",
-    description="CP2LFI: Conformal Prediction applied to Likelihood Free Inference",
+    description="CSI: Conformalizing Statistical Inference",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="#",

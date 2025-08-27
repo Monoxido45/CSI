@@ -6,8 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest
-from CP2LFI.scores import LambdaScore
+from CSI.loforest import ConformalLoforest
+from CSI.scores import LambdaScore
 
 from clover import Scores
 from clover import LocartSplit
@@ -25,9 +25,11 @@ from os import path
 
 original_path = os.getcwd()
 
+
 def sim_X(n, theta, rng):
     X = rng.normal(theta, 1, n)
     return X
+
 
 def sim_lambda(B, N, theta, rng, sigma=0.25):
     lambdas = np.zeros(B)
@@ -35,6 +37,7 @@ def sim_lambda(B, N, theta, rng, sigma=0.25):
         X = sim_X(N, theta, rng)
         lambdas[i] = compute_pdf_posterior(theta, X, sigma=sigma)
     return lambdas
+
 
 def sample_posterior(n, N, rng, sigma=0.25):
     thetas = rng.uniform(-5, 5, size=n)
@@ -46,11 +49,13 @@ def sample_posterior(n, N, rng, sigma=0.25):
         i += 1
     return thetas, lambdas
 
+
 def compute_pdf_posterior(theta, x, sigma=0.25):
     n = x.shape[0]
     mu_value = (1 / ((1 / sigma) + n)) * (np.sum(x))
     sigma_value = ((1 / sigma) + n) ** (-1)
     return -stats.norm.pdf(theta, loc=mu_value, scale=np.sqrt(sigma_value))
+
 
 # naive method
 def naive(alpha, rng, B=1000, N=100, lower=-5, upper=5, naive_n=100, sigma=0.25):
@@ -62,6 +67,7 @@ def naive(alpha, rng, B=1000, N=100, lower=-5, upper=5, naive_n=100, sigma=0.25)
         quantiles[theta] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
+
 # naive predict function
 def predict_naive_quantile(theta_grid, quantiles_dict):
     thetas_values = np.array(list(quantiles_dict.keys()))
@@ -70,6 +76,7 @@ def predict_naive_quantile(theta_grid, quantiles_dict):
         idx = thetas_values[int(np.argmin(np.abs(theta - thetas_values)))]
         quantiles_list.append(quantiles_dict[idx])
     return quantiles_list
+
 
 def obtain_quantiles(
     thetas,
@@ -80,7 +87,7 @@ def obtain_quantiles(
     naive_n=500,
     sigma=0.25,
     min_samples_leaf=300,
-    K = 50,
+    K=50,
 ):
     # simulating to fit models
     theta_sim, model_lambdas = sample_posterior(n=B, N=N, rng=rng, sigma=sigma)
@@ -98,7 +105,11 @@ def obtain_quantiles(
         LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
     loforest_object.calibrate(
-        model_thetas, model_lambdas, min_samples_leaf=min_samples_leaf, K=K, n_estimators=200
+        model_thetas,
+        model_lambdas,
+        min_samples_leaf=min_samples_leaf,
+        K=K,
+        n_estimators=200,
     )
 
     # boosting quantiles
@@ -124,7 +135,7 @@ def obtain_quantiles(
     loforest_cutoffs = loforest_object.compute_cutoffs(thetas.reshape(-1, 1))
 
     ## boosting
-    #boosting_quantiles = model.predict(thetas.reshape(-1, 1))
+    # boosting_quantiles = model.predict(thetas.reshape(-1, 1))
 
     # dictionary of quantiles
     quantile_dict = {
@@ -132,6 +143,7 @@ def obtain_quantiles(
     }
 
     return quantile_dict
+
 
 def compute_MAE_N(
     thetas,
@@ -144,10 +156,10 @@ def compute_MAE_N(
     min_samples_leaf=300,
     naive_n=500,
     sigma=0.25,
-    K = 50,
+    K=50,
 ):
     folder_path = "/experiments/results_data"
-            
+
     if not (path.exists(original_path + folder_path)):
         os.mkdir(original_path + folder_path)
     N_list = []
@@ -167,7 +179,7 @@ def compute_MAE_N(
                 naive_n=naive_n,
                 sigma=sigma,
                 rng=rng,
-                K = K,
+                K=K,
             )
             err_data = np.zeros((thetas.shape[0], 1))
             l = 0
@@ -184,14 +196,14 @@ def compute_MAE_N(
 
                 err_loforest = np.abs(loforest_cover - (1 - alpha))
 
-                err_data[l, :] = np.array(
-                    [err_loforest]
-                )
+                err_data[l, :] = np.array([err_loforest])
 
                 l += 1
 
-            mae_list.extend(np.mean(err_data, axis = 0).tolist())
-            se_list.extend((np.std(err_data, axis = 0)/np.sqrt(thetas.shape[0])).tolist())
+            mae_list.extend(np.mean(err_data, axis=0).tolist())
+            se_list.extend(
+                (np.std(err_data, axis=0) / np.sqrt(thetas.shape[0])).tolist()
+            )
             methods_list.extend(["LOFOREST"])
             N_list.extend([N_fixed] * 1)
             B_list.extend([B_fixed] * 1)
@@ -206,7 +218,7 @@ def compute_MAE_N(
         }
     )
 
-    #stats_data.to_csv(original_path + folder_path + "/bff_data.csv")
+    # stats_data.to_csv(original_path + folder_path + "/bff_data.csv")
     return stats_data
 
 
@@ -224,9 +236,9 @@ if __name__ == "__main__":
 
         cov_5000[k] = compute_MAE_N(
             thetas,
-            N = np.array([1, 10, 20, 50]),
+            N=np.array([1, 10, 20, 50]),
             naive_n=100,
-            n_it = 10,
+            n_it=10,
             K=k,
             seed=1250,
         )

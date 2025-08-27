@@ -1,10 +1,10 @@
 import torch
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest, tune_loforest_LFI
+from CSI.loforest import ConformalLoforest, tune_loforest_LFI
 from clover import LocartSplit
-from CP2LFI.scores import LambdaScore
-from CP2LFI.utils import naive, predict_naive_quantile
+from CSI.scores import LambdaScore
+from CSI.utils import naive, predict_naive_quantile
 
 # quantile regression
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -17,7 +17,7 @@ import itertools
 import pandas as pd
 
 # utils functions
-from CP2LFI.utils import obtain_quantiles
+from CSI.utils import obtain_quantiles
 import os
 
 # package to simulate from two moons

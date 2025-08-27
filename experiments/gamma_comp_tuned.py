@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest, tune_loforest_LFI
-from CP2LFI.scores import LambdaScore
+from CSI.loforest import ConformalLoforest, tune_loforest_LFI
+from CSI.scores import LambdaScore
 
 from clover import LocartSplit
 

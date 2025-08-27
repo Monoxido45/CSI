@@ -4,8 +4,8 @@ import pandas as pd
 from scipy import stats
 
 # loforest and locart functions
-from CP2LFI.loforest import ConformalLoforest
-from CP2LFI.scores import LambdaScore
+from CSI.loforest import ConformalLoforest
+from CSI.scores import LambdaScore
 
 from clover import LocartSplit
 

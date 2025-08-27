@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 import os
-from CP2LFI.utils import obtain_quantiles_saved_tune, CPU_Unpickler
+from CSI.utils import obtain_quantiles_saved_tune, CPU_Unpickler
 
 from hypothesis.benchmark import sir, tractable, mg1, weinberg
 import sbibm

@@ -8,7 +8,7 @@ import numpy as np
 from hypothesis.benchmark import sir, tractable, mg1, weinberg
 import sbibm
 
-from CP2LFI.utils import CPU_Unpickler
+from CSI.utils import CPU_Unpickler
 
 # pip install sbibm
 import os
