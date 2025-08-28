@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="CSI",
     version="0.1",
-    author="Luben Miguel Cruz Cabezas",
+    author="Luben M. C. Cabezas, Guilherme P. Soares",
     author_email="lucruz45.cab@gmail.com",
     description="CSI: Conformalizing Statistical Inference",
     long_description=long_description,
@@ -18,5 +18,13 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["numpy", "scikit-learn", "tqdm", "normflows", "torch"],
+    install_requires=[
+        "numpy",
+        "scikit-learn",
+        "tqdm",
+        "normflows",
+        "torch",
+        "matplotlib",
+        "statsmodels",
+    ],
 )

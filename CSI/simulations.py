@@ -872,11 +872,11 @@ def naive(stat, kind_model, alpha, rng, B=1000, N=100, naive_n=500):
 
     elif kind_model == "lognormal":
         n_grid = round(B / naive_n)
-        a_s = np.linspace(-2.4999, 2.4999, n_grid)
-        b_s = np.linspace(0.1501, 1.2499, n_grid)
+        a_s = np.linspace(-2.4999, 2.4999, int(np.ceil(n_grid ** (1 / 2))))
+        b_s = np.linspace(0.1501, 1.2499, int(np.ceil(n_grid ** (1 / 2))))
         for mu, sigma in itertools.product(a_s, b_s):
             theta = np.array([mu, sigma])
-            lambdas = sim_lambda(B=int(np.sqrt(naive_n)), N=N, theta=theta)
+            lambdas = sim_lambda(B=naive_n, N=N, theta=theta)
             quantiles[(mu, sigma)] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
