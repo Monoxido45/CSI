@@ -5,6 +5,7 @@ from pandas.api.types import CategoricalDtype
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import ListedColormap
 
 # plotting object (if needed)
 plt.style.use("seaborn-white")
@@ -66,6 +67,177 @@ combined_df["methods"] = combined_df["methods"].cat.rename_categories(
         "monte-carlo": "MC",
     }
 )
+
+# making heatmaps separated by N for each statistic
+B_s = combined_df["B"].unique()
+stats = combined_df["Statistic"].unique()
+stats_dict = {}
+signif_dict = {}
+
+# grouping simulation budget and model together
+for stat in stats:
+    stat_df = combined_df[combined_df["Statistic"] == stat]
+    stat_df = stat_df.sort_values(by=["B", "N"], ascending=[True, True])
+    stat_df["methods"] = stat_df["methods"].astype(
+        CategoricalDtype(
+            ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC", "asymptotic"],
+            ordered=True,
+        )
+    )
+
+    stat_df["model_B"] = stat_df["Model"].astype(str) + "-" + stat_df["B"].astype(str)
+
+    # Sort model_B by original model order, then by B ascending within each model
+    # Extract original model order from stat_df["Model"]
+    original_models = stat_df["Model"].unique().tolist()
+    # Build ordered_model_B list
+    ordered_model_B = []
+    for model in original_models:
+        # Get all B values for this model
+        model_Bs = [
+            mb for mb in stat_df["model_B"].unique() if mb.startswith(model + "-")
+        ]
+        # Sort B values numerically
+        model_Bs_sorted = sorted(model_Bs, key=lambda mb: int(mb.split("-")[-1]))
+        ordered_model_B.extend(model_Bs_sorted)
+    stat_df["model_B"] = pd.Categorical(
+        stat_df["model_B"], categories=ordered_model_B, ordered=True
+    )
+
+    # separating everything in lists for different N's
+    N_s = np.sort(stat_df["N"].unique())
+    for n in N_s:
+        n_df = stat_df[stat_df["N"] == n].copy()
+        # obtaining MAE array
+        mae_matrix = n_df.pivot(index="methods", columns="model_B", values="MAE")
+        se_matrix = n_df.pivot(index="methods", columns="model_B", values="se") * 2
+
+        # also deriving significance matrix
+        significance_matrix = np.zeros(mae_matrix.shape)
+        idxs = np.arange(mae_matrix.shape[0])
+        for i in range(mae_matrix.shape[1]):
+            col_mae = mae_matrix.iloc[:, i]
+            col_se = se_matrix.iloc[:, i]
+            min_idx = col_mae.idxmin()
+            num_min_idx = int(col_mae.index.get_loc(min_idx))
+            significance_matrix[num_min_idx, i] = 1
+
+            idxs = np.arange(mae_matrix.shape[0])
+            # checking significance of other methods
+            excluded_mae_array = np.delete(
+                col_mae,
+                num_min_idx,
+            )
+
+            excluded_se_array = np.delete(
+                col_se,
+                num_min_idx,
+            )
+
+            excluded_idxs_array = np.delete(
+                idxs,
+                num_min_idx,
+            )
+
+            lim_sup = col_mae[num_min_idx] + col_se[num_min_idx]
+            lim_inf = excluded_mae_array - excluded_se_array
+
+            add_indexes = np.where(lim_sup >= lim_inf)[0]
+            if add_indexes.size > 0:
+                selected_indexes = excluded_idxs_array[add_indexes]
+                significance_matrix[selected_indexes, i] = 1
+
+        stats_dict[(stat, n)] = [mae_matrix, se_matrix]
+        signif_dict[(stat, n)] = significance_matrix
+
+
+# now plotting heatmaps
+plt.rcParams.update({"font.size": 12})
+for stat in stats:
+    if stat == "KS":
+        N_s = [5, 10, 20, 50, 100]
+    else:
+        N_s = [1, 10, 20, 50, 100]
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    for idx, N in enumerate(N_s):
+        ax = axes.flatten()[idx]
+        mae_matrix = stats_dict[(stat, N)][0]
+        se_matrix = stats_dict[(stat, N)][1]
+        significance_matrix = signif_dict[(stat, N)]
+
+        # Define a discrete colormap with two colors: green for significant, white for not significant
+        cmap = ListedColormap(["white", "mediumseagreen"])
+
+        # Plot the heatmap with the discrete colormap
+        heatmap = ax.imshow(
+            significance_matrix,
+            cmap=cmap,
+            aspect="auto",
+            interpolation="none",
+            extent=[
+                -0.5,
+                significance_matrix.shape[1] - 0.5,
+                significance_matrix.shape[0] - 0.5,
+                -0.5,
+            ],
+        )
+
+        # Add gridlines to separate tiles
+        ax.set_xticks(np.arange(-0.5, len(mae_matrix.columns), 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, len(mae_matrix.index), 1), minor=True)
+        ax.grid(which="minor", color="black", linestyle="-", linewidth=0.5)
+        ax.tick_params(which="minor", bottom=False, left=False)
+
+        # Add text (MAE and SE values) to each tile
+        for i in range(mae_matrix.shape[0]):
+            for j in range(mae_matrix.shape[1]):
+                value = mae_matrix.iloc[i, j]
+                se_value = se_matrix.iloc[i, j]
+                ax.text(
+                    j,
+                    i,
+                    f"{value:.3f}\n({se_value:.3f})",
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=8,
+                )
+
+        # Set axis labels and ticks
+        ax.set_xlabel("Benchmarks")
+        if idx in [0, 3]:
+            ax.set_ylabel("Methods")
+        else:
+            ax.set_ylabel("")
+
+        ax.tick_params(axis="x", labelsize=9)
+        if idx in [3, 4]:
+            ax.set_xticks(range(len(mae_matrix.columns)))
+            ax.set_xticklabels(mae_matrix.columns, rotation=45, ha="right")
+        else:
+            ax.set_xlabel("")
+            ax.set_xticklabels([])
+
+        if idx in [1, 2, 4]:
+            ax.set_yticklabels([])
+        else:
+            ax.set_yticks(range(len(mae_matrix.index)))
+            ax.set_yticklabels(mae_matrix.index)
+
+        for tick, label in zip(ax.get_yticklabels(), mae_matrix.index):
+            if label in ["TRUST++ tuned", "TRUST++ MV", "TRUST"]:
+                tick.set_fontweight("bold")
+        ax.set_title(f"n: {N}")
+
+    # Remove empty subplot if N_s has less than 6 elements
+    if len(N_s) < axes.size:
+        for idx in range(len(N_s), axes.size):
+            fig.delaxes(axes.flatten()[idx])
+
+    # plt.subplots_adjust(wspace=0.1, hspace=0.1)
+    plt.tight_layout()  # Commented out to prevent overriding wspace
+    plt.show()
 
 
 # making general barplot for performance
