@@ -309,17 +309,17 @@ if __name__ == "__main__":
     if kind_model == "1d_normal":
         n_out = 750
         thetas = np.linspace(-4.999, 4.999, n_out)
-        N = np.array([1, 10, 50, 100])
+        N = np.array([1, 10, 20, 50, 100])
     elif kind_model == "gmm":
         n_out = 300
         thetas = np.linspace(0, 4.999, n_out)
-        N = np.array([1, 10, 50, 100])
+        N = np.array([1, 10, 20, 50, 100])
     elif kind_model == "lognormal":
         n_out = 50
         a_s = np.linspace(-2.4999, 2.4999, n_out)
         b_s = np.linspace(0.15001, 1.2499, n_out)
         thetas = np.c_[list(itertools.product(a_s, b_s))]
-        N = np.array([5, 10, 20, 50, 100])
+        N = np.array([1, 10, 20, 50, 100])
 
     start_time = time.time()
     stats_df = compute_MAE_N(
