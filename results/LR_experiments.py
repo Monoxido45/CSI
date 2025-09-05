@@ -170,6 +170,7 @@ def compute_MAE_N(
     K_grid=np.concatenate((np.array([0]), np.arange(20, 95, 5))),
     n_it=30,
     naive_n=100,
+    sel_n=False,
 ):
     # fixing path
     folder_path = "/results/res_data"
@@ -280,46 +281,90 @@ def compute_MAE_N(
                     "K_tuned": K_loforest_list,
                 }
             )
-            stats_data.to_csv(
-                original_path + folder_path + "/LR_{}_stats_data.csv".format(kind_model)
-            )
 
-            # saving rng state lists
-            rng_simulate_array = np.array(rng_simulate_list)
-            np.savez(
-                original_path
-                + folder_path
-                + "/LR_{}_rng_simulate_list".format(kind_model),
-                rng_simulate_array,
-                allow_pickle=True,
-            )
+            if sel_n:
+                stats_data.to_csv(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_stats_data_{}.csv".format(kind_model, N[0])
+                )
 
-            rng_test_array = np.array(rng_test_list)
-            np.savez(
-                original_path + folder_path + "/LR_{}_rng_test_list".format(kind_model),
-                rng_test_array,
-                allow_pickle=True,
-            )
+                # saving rng state lists
+                rng_simulate_array = np.array(rng_simulate_list)
+                np.savez(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_rng_simulate_list_{}".format(kind_model, N[0]),
+                    rng_simulate_array,
+                    allow_pickle=True,
+                )
+
+                rng_test_array = np.array(rng_test_list)
+                np.savez(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_rng_test_list_{}".format(kind_model, N[0]),
+                    rng_test_array,
+                    allow_pickle=True,
+                )
+            else:
+                stats_data.to_csv(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_stats_data.csv".format(kind_model)
+                )
+
+                # saving rng state lists
+                rng_simulate_array = np.array(rng_simulate_list)
+                np.savez(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_rng_simulate_list".format(kind_model),
+                    rng_simulate_array,
+                    allow_pickle=True,
+                )
+
+                rng_test_array = np.array(rng_test_list)
+                np.savez(
+                    original_path
+                    + folder_path
+                    + "/LR_{}_rng_test_list".format(kind_model),
+                    rng_test_array,
+                    allow_pickle=True,
+                )
 
 
 if __name__ == "__main__":
     print("We will now compute all MAE statistics for the LR statistic")
     n_it = int(input("Input the desired number of experiment repetition to be made: "))
     kind_model = input("Choose your model between: 1d_normal, gmm and lognormal ")
+    sel_n = input("Would you want to select a specific N value? (yes/no) ") == "yes"
+    if sel_n:
+        N_fixed = int(input("Input the desired N value: "))
+
     if kind_model == "1d_normal":
         n_out = 750
         thetas = np.linspace(-4.999, 4.999, n_out)
-        N = np.array([1, 10, 20, 50, 100])
+        if sel_n:
+            N = np.array([N_fixed])
+        else:
+            N = np.array([10, 20, 50, 100])
     elif kind_model == "gmm":
         n_out = 300
         thetas = np.linspace(0, 4.999, n_out)
-        N = np.array([1, 10, 20, 50, 100])
+        if sel_n:
+            N = np.array([N_fixed])
+        else:
+            N = np.array([10, 20, 50, 100])
     elif kind_model == "lognormal":
         n_out = 50
         a_s = np.linspace(-2.4999, 2.4999, n_out)
         b_s = np.linspace(0.15001, 1.2499, n_out)
         thetas = np.c_[list(itertools.product(a_s, b_s))]
-        N = np.array([10, 20, 50, 100])
+        if sel_n:
+            N = np.array([N_fixed])
+        else:
+            N = np.array([10, 20, 50, 100])
 
     start_time = time.time()
     stats_df = compute_MAE_N(
@@ -336,6 +381,7 @@ if __name__ == "__main__":
         B_valid=1000,
         N_lambda=500,
         naive_n=500,
+        sel_n=sel_n,
     )
 
     end_time = time.time()
