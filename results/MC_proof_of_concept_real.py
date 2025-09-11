@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import itertools
 from CSI.utils import CPU_Unpickler, naive, predict_naive_quantile

@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-from sklearn.base import clone
 from tqdm import tqdm
 
 

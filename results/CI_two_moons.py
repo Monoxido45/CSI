@@ -2,7 +2,7 @@ import torch
 
 # loforest and locart functions
 from CSI.loforest import ConformalLoforest, tune_loforest_LFI
-from clover import LocartSplit
+from CSI.locart import LocartSplit
 from CSI.scores import LambdaScore
 from CSI.utils import naive, predict_naive_quantile
 

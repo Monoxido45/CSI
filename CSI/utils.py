@@ -7,7 +7,7 @@ from torch.distributions.beta import Beta
 from CSI.loforest import ConformalLoforest, tune_loforest_LFI
 from CSI.scores import LambdaScore
 from CSI.posterior_models import normflow_posterior
-from clover import LocartSplit
+from CSI.locart import LocartSplit
 
 import pickle
 import io

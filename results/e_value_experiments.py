@@ -8,7 +8,7 @@ from CSI.scores import LambdaScore
 from CSI.simulations import Simulations, naive, predict_naive_quantile
 
 from scipy import stats
-from clover import LocartSplit
+from CSI.locart import LocartSplit
 
 from copy import deepcopy
 
