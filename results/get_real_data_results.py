@@ -392,7 +392,6 @@ for stat in stats:
     plt.show()
 
 # function to compare and number of times each method performed best
-# copying t_analysis from clover
 # filtering by the best methods
 filtered_data = all_measures.groupby(["n", "B", "stat", "kind"], as_index=False).apply(
     lambda df: df.nsmallest(n=1, columns="MAE", keep="all")
@@ -512,6 +511,8 @@ plt.tight_layout()
 
 g.savefig("results/figures/all_real_comparissons.pdf", format="pdf")
 
+
+####### Unused visualizations ##########
 # making now barplots for coverage distance
 all_measures["method"] = all_measures["method"].astype(new_custom_order)
 # first, for distance < 0.05
@@ -594,7 +595,7 @@ plt.tight_layout()
 plt.savefig("results/figures/method_counts_all_MAE_real.pdf", format="pdf")
 plt.show()
 
-########### Supplementary material visualizations #############
+########### Extra supplementary material visualizations #############
 stats_list = ["bff", "waldo", "e_value"]
 model_list = ["sir", "two moons", "weinberg", "mg1", "tractable"]
 

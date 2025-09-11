@@ -357,6 +357,8 @@ for ax in g.axes.flatten():
 
 g.savefig("results/figures/all_comparissons.pdf", format="pdf")
 
+
+#### Unused visualizations ##########
 # changing combined_df method
 combined_df["methods"] = combined_df["methods"].astype(new_custom_order)
 # making now barplots for coverage distance
