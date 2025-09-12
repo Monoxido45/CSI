@@ -85,21 +85,34 @@ for stat in stats:
         )
     )
 
+    stat_df["methods"] = stat_df["methods"].cat.rename_categories(
+        {
+            "TRUST++ tuned": "TRUST++\n tuned",
+            "TRUST++ MV": "TRUST++\n MV",
+        }
+    )
+
+    # Use ": B=" in string for model_B
     stat_df["model_B"] = stat_df["Model"].astype(str) + "-" + stat_df["B"].astype(str)
 
     # Sort model_B by original model order, then by B ascending within each model
-    # Extract original model order from stat_df["Model"]
     original_models = stat_df["Model"].unique().tolist()
-    # Build ordered_model_B list
     ordered_model_B = []
     for model in original_models:
-        # Get all B values for this model
+        # Get all model_B values for this model
         model_Bs = [
             mb for mb in stat_df["model_B"].unique() if mb.startswith(model + "-")
         ]
-        # Sort B values numerically
+        # Sort B values numerically (extract after "-")
         model_Bs_sorted = sorted(model_Bs, key=lambda mb: int(mb.split("-")[-1]))
         ordered_model_B.extend(model_Bs_sorted)
+
+    # Change "-" to ": B=" in model_B column
+    stat_df["model_B"] = stat_df["model_B"].str.replace("-", ": B=")
+
+    # Also update ordered_model_B accordingly
+    ordered_model_B = [mb.replace("-", ": B=") for mb in ordered_model_B]
+
     stat_df["model_B"] = pd.Categorical(
         stat_df["model_B"], categories=ordered_model_B, ordered=True
     )
@@ -149,7 +162,6 @@ for stat in stats:
 
         stats_dict[(stat, n)] = [mae_matrix, se_matrix]
         signif_dict[(stat, n)] = significance_matrix
-
 
 # now plotting heatmaps
 plt.rcParams.update({"font.size": 12})

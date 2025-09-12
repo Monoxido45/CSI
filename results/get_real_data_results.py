@@ -262,6 +262,13 @@ for stat in stats:
         # Sort B values numerically
         model_Bs_sorted = sorted(model_Bs, key=lambda mb: int(mb.split("-")[-1]))
         ordered_model_B.extend(model_Bs_sorted)
+
+    # Change "-" to ": B=" in model_B column
+    stat_df["model_B"] = stat_df["model_B"].str.replace("-", ": B=")
+
+    # Also update ordered_model_B accordingly
+    ordered_model_B = [mb.replace("-", ": B=") for mb in ordered_model_B]
+
     stat_df["model_B"] = pd.Categorical(
         stat_df["model_B"], categories=ordered_model_B, ordered=True
     )
