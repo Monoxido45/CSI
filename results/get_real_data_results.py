@@ -401,7 +401,7 @@ for stat in stats:
 # function to compare and number of times each method performed best
 # filtering by the best methods
 filtered_data = all_measures.groupby(["n", "B", "stat", "kind"], as_index=False).apply(
-    lambda df: df.nsmallest(n=1, columns="MAE", keep="all")
+    lambda df: df.nsmallest(n=1, columns="MAE")
 )
 
 n_count = filtered_data.shape[0]
@@ -419,7 +419,6 @@ for i in range(filtered_data.shape[0]):
     measures_comp = (
         all_measures.query("n == @n_best")
         .query("B == @B_best")
-        .query("kind == @kind_best")
         .query("kind == @kind_best")
         .query("stat == @stat_best")
         .query("method != @best_method")
@@ -466,7 +465,7 @@ filtered_data["method"].value_counts()
 # plotting as a function of B and N
 # plotting object (if needed)
 plt.style.use("seaborn-white")
-sns.set(style="ticks", font_scale=2.75)
+sns.set_theme(style="ticks", font_scale=2.75)
 plt.rcParams.update({"font.size": 16})
 colors = [
     "firebrick",
@@ -476,7 +475,7 @@ colors = [
     "darkorange",
     "goldenrod",
 ]
-custom_palette = sns.set_palette(sns.color_palette(colors))
+custom_palette = colors  # Pass this directly to palette argument
 
 # counting all of data
 method_counts = filtered_data.value_counts(["n", "B", "method"])
@@ -491,7 +490,7 @@ g = sns.catplot(
     kind="bar",
     col="n",
     row="B",
-    legend=True,
+    legend=False,
     sharey=True,
     palette=custom_palette,
     height=6,

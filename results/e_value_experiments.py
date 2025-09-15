@@ -7,12 +7,10 @@ from CSI.loforest import ConformalLoforest, tune_loforest_LFI
 from CSI.scores import LambdaScore
 from CSI.simulations import Simulations, naive, predict_naive_quantile
 
-from scipy import stats
 from CSI.locart import LocartSplit
 
 from copy import deepcopy
 
-from tqdm import tqdm
 import itertools
 import time
 
@@ -310,6 +308,9 @@ if __name__ == "__main__":
     print("We will now compute all MAE statistics for the E-value statistic")
     n_it = int(input("Input the desired number of experiment repetition to be made: "))
     kind_model = input("Choose your model between: 1d_normal, gmm and lognormal ")
+    sel_n = input("Would you want to select a specific N value? (yes/no) ") == "yes"
+    if sel_n:
+        N_fixed = int(input("Input the desired N value: "))
     if kind_model == "1d_normal":
         n_out = 750
         thetas = np.linspace(-4.999, 4.999, n_out)
@@ -322,12 +323,17 @@ if __name__ == "__main__":
         b_s = np.linspace(0.15001, 1.2499, n_out)
         thetas = np.c_[list(itertools.product(a_s, b_s))]
 
+    if sel_n:
+        N = np.array([N_fixed])
+    else:
+        N = np.array([10, 20, 50, 100])
+
     start_time = time.time()
     stats_df = compute_MAE_N(
         kind_model=kind_model,
         thetas=thetas,
         B=np.array([1000, 5000, 10000, 15000]),
-        N=np.array([1, 10, 20, 50, 100]),
+        N=N,
         n_it=n_it,
         n=1000,
         min_samples_leaf=300,

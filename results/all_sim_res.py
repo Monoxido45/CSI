@@ -50,7 +50,6 @@ for file in os.listdir(folder_path):
 combined_df["methods"] = combined_df["methods"].replace(
     {"KS": "asymptotic", "LR": "asymptotic"}
 )
-print(combined_df)
 
 # Display the combined DataFrame
 method_custom_order = CategoricalDtype(
@@ -68,6 +67,14 @@ combined_df["methods"] = combined_df["methods"].cat.rename_categories(
     }
 )
 
+combined_df = combined_df[(combined_df["N"] != 5) & (combined_df["N"] != 1)]
+
+model_custom_order = CategoricalDtype(
+    ["1dnormal", "gmm", "lognormal"],
+    ordered=True,
+)
+combined_df["Model"] = combined_df["Model"].astype(model_custom_order)
+
 # making heatmaps separated by N for each statistic
 B_s = combined_df["B"].unique()
 stats = combined_df["Statistic"].unique()
@@ -78,12 +85,28 @@ signif_dict = {}
 for stat in stats:
     stat_df = combined_df[combined_df["Statistic"] == stat]
     stat_df = stat_df.sort_values(by=["B", "N"], ascending=[True, True])
-    stat_df["methods"] = stat_df["methods"].astype(
-        CategoricalDtype(
-            ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC", "asymptotic"],
-            ordered=True,
+
+    if stat == "BFF":
+        stat_df["methods"] = stat_df["methods"].astype(
+            CategoricalDtype(
+                ["TRUST++ tuned", "TRUST++ MV", "TRUST", "boosting", "MC"],
+                ordered=True,
+            )
         )
-    )
+    else:
+        stat_df["methods"] = stat_df["methods"].astype(
+            CategoricalDtype(
+                [
+                    "TRUST++ tuned",
+                    "TRUST++ MV",
+                    "TRUST",
+                    "boosting",
+                    "MC",
+                    "asymptotic",
+                ],
+                ordered=True,
+            )
+        )
 
     stat_df["methods"] = stat_df["methods"].cat.rename_categories(
         {
@@ -92,11 +115,10 @@ for stat in stats:
         }
     )
 
-    # Use ": B=" in string for model_B
     stat_df["model_B"] = stat_df["Model"].astype(str) + "-" + stat_df["B"].astype(str)
 
     # Sort model_B by original model order, then by B ascending within each model
-    original_models = stat_df["Model"].unique().tolist()
+    original_models = ["1dnormal", "gmm", "lognormal"]
     ordered_model_B = []
     for model in original_models:
         # Get all model_B values for this model
@@ -121,6 +143,7 @@ for stat in stats:
     N_s = np.sort(stat_df["N"].unique())
     for n in N_s:
         n_df = stat_df[stat_df["N"] == n].copy()
+
         # obtaining MAE array
         mae_matrix = n_df.pivot(index="methods", columns="model_B", values="MAE")
         se_matrix = n_df.pivot(index="methods", columns="model_B", values="se") * 2
@@ -164,14 +187,12 @@ for stat in stats:
         signif_dict[(stat, n)] = significance_matrix
 
 # now plotting heatmaps
-plt.rcParams.update({"font.size": 12})
+plt.rcParams.update({"font.size": 16})
 for stat in stats:
-    if stat == "KS":
-        N_s = [5, 10, 20, 50, 100]
-    else:
-        N_s = [1, 10, 20, 50, 100]
+    print(f"Plotting heatmaps for statistic: {stat}")
+    N_s = [10, 20, 50, 100]
+    fig, axes = plt.subplots(2, 2, figsize=(18, 10))
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     for idx, N in enumerate(N_s):
         ax = axes.flatten()[idx]
         mae_matrix = stats_dict[(stat, N)][0]
@@ -213,32 +234,54 @@ for stat in stats:
                     ha="center",
                     va="center",
                     color="black",
-                    fontsize=8,
+                    fontsize=9.5,
                 )
 
         # Set axis labels and ticks
         ax.set_xlabel("Benchmarks")
-        if idx in [0, 3]:
+        if idx in [0, 2]:
             ax.set_ylabel("Methods")
         else:
             ax.set_ylabel("")
 
-        ax.tick_params(axis="x", labelsize=9)
-        if idx in [3, 4]:
+        ax.tick_params(axis="x", labelsize=14)
+        #        if stat != "KS" and stat != "LR":
+        #            if idx in [3, 4]:
+        #                ax.set_xticks(range(len(mae_matrix.columns)))
+        #                ax.set_xticklabels(mae_matrix.columns, rotation=45, ha="right")
+        #            else:
+        #                ax.set_xlabel("")
+        #                ax.set_xticklabels([])
+        #        elif stat == "LR":
+        #            if idx in [0, 3, 4]:
+        #                ax.set_xticks(range(len(mae_matrix.columns)))
+        #                ax.set_xticklabels(mae_matrix.columns, rotation=45, ha="right")
+        #           else:
+        #               ax.set_xlabel("")
+        #               ax.set_xticklabels([])
+        #       else:
+        if idx in [2, 3]:
             ax.set_xticks(range(len(mae_matrix.columns)))
             ax.set_xticklabels(mae_matrix.columns, rotation=45, ha="right")
         else:
             ax.set_xlabel("")
             ax.set_xticklabels([])
 
-        if idx in [1, 2, 4]:
+        #        if stat != "KS":
+        #            if idx in [1, 2, 4]:
+        #                ax.set_yticklabels([])
+        #            else:
+        #                ax.set_yticks(range(len(mae_matrix.index)))
+        #                ax.set_yticklabels(mae_matrix.index)
+        #        else:
+        if idx in [1, 3]:
             ax.set_yticklabels([])
         else:
             ax.set_yticks(range(len(mae_matrix.index)))
             ax.set_yticklabels(mae_matrix.index)
 
         for tick, label in zip(ax.get_yticklabels(), mae_matrix.index):
-            if label in ["TRUST++ tuned", "TRUST++ MV", "TRUST"]:
+            if label in ["TRUST++\n tuned", "TRUST++\n MV", "TRUST"]:
                 tick.set_fontweight("bold")
         ax.set_title(f"n: {N}")
 
@@ -249,15 +292,15 @@ for stat in stats:
 
     # plt.subplots_adjust(wspace=0.1, hspace=0.1)
     plt.tight_layout()  # Commented out to prevent overriding wspace
-    plt.show()
+    plt.savefig(f"results/heatmap_{stat}_sim.pdf", format="pdf")
 
 
 # making general barplot for performance
 filtered_data = combined_df.groupby(
     ["N", "B", "Model", "Statistic"], as_index=False
-).apply(lambda df: df.nsmallest(n=1, columns="MAE", keep="all"))
-n_methods = filtered_data.shape[0]
+).apply(lambda df: df.nsmallest(n=1, columns="MAE"))
 
+n_methods = filtered_data.shape[0]
 for i in range(filtered_data.shape[0]):
     # selecting values for n, B, kind and stats
     series_values = filtered_data.iloc[i, :]
@@ -324,7 +367,7 @@ method_counts_data = method_counts.reset_index()
 method_counts_data["methods"] = method_counts_data["methods"].astype(new_custom_order)
 
 # creating custom palette
-sns.set(style="ticks", font_scale=2.75)
+sns.set_theme(style="ticks", font_scale=2.75)
 plt.rcParams.update({"font.size": 14})
 colors = [
     "firebrick",
@@ -334,7 +377,7 @@ colors = [
     "darkorange",
     "goldenrod",
 ]
-custom_palette = sns.set_palette(sns.color_palette(colors))
+custom_palette = colors  # Pass this directly to palette argument
 
 # Create a facet grid using catplot
 g = sns.catplot(
@@ -344,7 +387,7 @@ g = sns.catplot(
     kind="bar",
     col="N",
     row="B",
-    legend=True,
+    legend=False,
     sharey=True,
     palette=custom_palette,
     height=6,
@@ -357,17 +400,19 @@ g.set_ylabels("")
 g.set_xlabels("")
 g.tick_params(axis="x", rotation=75)
 # Adjust the layout to put the y label outside of the graph
-g.fig.subplots_adjust(left=0.5)
-g.fig.supylabel("Number of times each method performed better", fontsize=35, x=-0.005)
+g.figure.subplots_adjust(left=0.5)
+g.figure.supylabel(
+    "Number of times each method performed better", fontsize=35, x=-0.005
+)
 plt.tight_layout()
 count = 0
 for ax in g.axes.flatten():
-    if count >= 18:
+    if count >= 12:
         for idx in [0, 1, 2]:
             ax.get_xticklabels()[idx].set_fontweight("bold")
     count += 1
 
-g.savefig("results/figures/all_comparissons.pdf", format="pdf")
+g.savefig("results/figures/all_comparissons_v2.pdf", format="pdf")
 
 
 #### Unused visualizations ##########
