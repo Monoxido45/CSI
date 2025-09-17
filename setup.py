@@ -6,8 +6,8 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="CSI",
     version="0.1",
-    author="Luben M. C. Cabezas, Guilherme P. Soares",
-    author_email="lucruz45.cab@gmail.com",
+    author="Anonymous",
+    author_email="",
     description="CSI: Conformalizing Statistical Inference",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -26,5 +26,6 @@ setuptools.setup(
         "torch",
         "matplotlib",
         "statsmodels",
+        "xgboost",
     ],
 )
