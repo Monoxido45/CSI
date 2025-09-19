@@ -23,3 +23,6 @@ sup_figures/
 results/figures/
 CSI/__pycache__
 results/*two moons*
+.vscode
+CSI.egg-info
+*.zip*
