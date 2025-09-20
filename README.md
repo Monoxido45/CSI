@@ -5,7 +5,7 @@ Here we provide an implementation of TRUST and TRUST++ and scripts to reproduce 
 
 ## Installing Dependencies and Package
 
-To install the necessary dependencies and the EPICSCORE package, follow these steps:
+To install the necessary dependencies and the CSI package, follow these steps:
 
 1. Navigate to the directory containing the `setup.py` file.
 
