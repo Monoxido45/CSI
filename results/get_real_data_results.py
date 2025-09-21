@@ -413,7 +413,7 @@ for i in range(filtered_data.shape[0]):
     n_best, B_best = series_values["n"], series_values["B"]
     kind_best, stat_best = series_values["kind"], series_values["stat"]
     best_method = series_values["method"]
-    best_MAE, best_SE = series_values["MAE"], series_values["SE"]
+    best_MAE, best_SE = series_values["MAE"], 2 * series_values["SE"]
 
     # comparing it to the other methods
     measures_comp = (
