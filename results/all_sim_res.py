@@ -301,13 +301,13 @@ filtered_data = combined_df.groupby(
 ).apply(lambda df: df.nsmallest(n=1, columns="MAE"))
 
 n_methods = filtered_data.shape[0]
-for i in range(filtered_data.shape[0]):
+for i in range(n_methods):
     # selecting values for n, B, kind and stats
     series_values = filtered_data.iloc[i, :]
     n_best, B_best = series_values["N"], series_values["B"]
     model_best, stat_best = series_values["Model"], series_values["Statistic"]
     best_method = series_values["methods"]
-    best_MAE, best_SE = series_values["MAE"], series_values["se"]
+    best_MAE, best_SE = series_values["MAE"], 2 * series_values["se"]
 
     # comparing it to the other methods
     measures_comp = (
@@ -330,7 +330,7 @@ for i in range(filtered_data.shape[0]):
     methods_names = measures_comp.iloc[:, 0].to_numpy()
 
     # obtaining indexes
-    idx_add = np.where(lim_inf <= lim_sup)
+    idx_add = np.where((lim_inf <= lim_sup) | (methods_MAE == best_MAE))
     if idx_add[0].shape[0] > 0:
         names_sel = methods_names[idx_add]
         mae_sel = methods_MAE[idx_add]
@@ -402,7 +402,9 @@ g.tick_params(axis="x", rotation=75)
 # Adjust the layout to put the y label outside of the graph
 g.figure.subplots_adjust(left=0.5)
 g.figure.supylabel(
-    "Number of times each method performed better", fontsize=35, x=-0.005
+    "Number of times each method performed better",
+    fontsize=35,
+    x=-0.005,
 )
 plt.tight_layout()
 count = 0
