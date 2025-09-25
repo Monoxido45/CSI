@@ -1,6 +1,6 @@
 # CSI: Conformalizing Statistical Inference with TRUST and TRUST++
 
-This repository contains the implementation of TRUST and TRUST++, along with scripts for reproducing the figures and tables from the paper *Distribution-Free Calibration of Statistical Confidence Sets*.
+This repository contains the implementation of TRUST and TRUST++, along with scripts for reproducing the figures and tables from the paper *Conformal Calibration of Statistical Confidence Sets*.
 
 ## Overview
 
