@@ -31,7 +31,12 @@ To set up the CSI package and its dependencies:
     ```bash
     pip install .
     ```
-
+6. **(Optional) Install Hypothesis package to run some experiments**:
+    ```bash
+    git clone https://github.com/montefiore-ai/hypothesis
+    cd hypothesis
+    pip install -e .
+    ```
 ## Running Experiments
 
 Scripts for running real data experiments are provided in the `results/` directory. Example commands:
