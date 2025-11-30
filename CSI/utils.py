@@ -16,13 +16,26 @@ import pandas as pd
 # quantile regression
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-
+# new CPU unpickler to work around some issues when loading models saved in GPU
 class CPU_Unpickler(pickle.Unpickler):
     def find_class(self, module, name):
+        # --- FIX: Redireciona o pacote antigo para o novo ---
+        if module == 'CP2LFI' or module.startswith('CP2LFI.'):
+            module = module.replace('CP2LFI', 'CSI', 1)
+        # ----------------------------------------------------
+
         if module == "torch.storage" and name == "_load_from_bytes":
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
-        else:
-            return super().find_class(module, name)
+        
+        return super().find_class(module, name)
+
+
+# class CPU_Unpickler(pickle.Unpickler):
+#    def find_class(self, module, name):
+#        if module == "torch.storage" and name == "_load_from_bytes":
+#            return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
+#        else:
+#            return super().find_class(module, name)
 
 
 def beta_prior(type, sample_size):
@@ -766,3 +779,155 @@ def fit_post_model(
         nflow_post.plot_history()
 
     return nflow_post
+
+
+def fit_lambda_model(
+    theta_train,
+    lambda_train,
+    seed=45,
+    split_seed=0,
+    n_flows=4,
+    hidden_units=64,
+    hidden_layers=2,
+    enable_cuda=True,
+    patience=50,
+    n_epochs=2000,
+    batch_size=250,
+    type_flow="Quadratic Spline",
+):
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    # ensure lambda_train is a numpy array and has a column dimension
+    if isinstance(lambda_train, torch.Tensor):
+        lambda_train = lambda_train.numpy()
+    else:
+        lambda_train = np.array(lambda_train)
+
+    # if flat (1D), make it a column vector
+    if lambda_train.ndim == 1:
+        lambda_train = lambda_train.reshape(-1, 1)
+
+    # alias for compatibility with the rest of the function
+
+    nflow_post = normflow_posterior(
+        latent_size=lambda_train.shape[1],
+        sample_size=theta_train.shape[1],
+        n_flows=n_flows,
+        hidden_units=hidden_units,
+        hidden_layers=hidden_layers,
+        enable_cuda=enable_cuda,
+    )
+
+    nflow_post.fit(
+        theta_train.numpy(),
+        lambda_train,
+        patience=patience,
+        n_epochs=n_epochs,
+        batch_size=batch_size,
+        split_seed=split_seed,
+        type=type_flow,
+    )
+
+    return nflow_post
+
+
+def obtain_quantiles_saved_tune_nflow(
+    kind,
+    score,
+    theta_grid_eval,
+    simulator,
+    prior,
+    N,
+    B=1000,
+    alpha=0.05,
+    disable_tqdm=True,
+    log_transf=False,
+    using_beta=False,
+    two_moons=False,
+    seed=45,
+    split_seed=0,
+    n_flows=4,
+    hidden_units=64,
+    hidden_layers=2,
+    enable_cuda=True,
+    patience=50,
+    n_epochs=2000,
+    batch_size=250,
+    type_flow="Quadratic Spline",
+    B_quantile=2000,
+):
+    # fitting and predicting naive (monte-carlo
+    print("Running nflows method")
+
+    # simulating to fit models
+    if not using_beta:
+        if two_moons:
+            thetas_sim = prior(num_samples=B)
+        else:
+            thetas_sim = prior.sample((B,))
+    else:
+        thetas_sim = beta_prior(type=kind, sample_size=B)
+
+    if thetas_sim.ndim == 1:
+        model_thetas = thetas_sim.reshape(-1, 1)
+    else:
+        model_thetas = thetas_sim
+
+    repeated_thetas = thetas_sim.repeat_interleave(repeats=N, dim=0)
+    X_net = simulator(repeated_thetas)
+    if log_transf:
+        X_net = torch.log(X_net)
+    X_dim = X_net.shape[1]
+    X_net = X_net.reshape(B, N * X_dim)
+
+    model_lambdas = score.compute(
+        model_thetas.numpy(), X_net.numpy(), disable_tqdm=disable_tqdm
+    )
+
+    # checking if there are any NaNs in training and printing and message
+    # if True, remove elements with nan
+    nan_lambda = np.isnan(model_lambdas)
+    sum_nan = np.sum(nan_lambda)
+    if sum_nan > 0:
+        print(f"Warning: simulated data has {sum_nan} nan values")
+        model_lambdas = model_lambdas[~nan_lambda]
+        model_thetas = model_thetas[~nan_lambda, :]
+    
+    if theta_grid_eval.ndim == 1:
+        model_eval = theta_grid_eval.reshape(-1, 1)
+    else:
+        model_eval = theta_grid_eval
+    
+    nflow_model = fit_lambda_model(
+        theta_train = model_thetas,
+        lambda_train=model_lambdas,
+        seed=seed,
+        split_seed=split_seed,
+        n_flows=n_flows,
+        hidden_units=hidden_units,
+        hidden_layers=hidden_layers,
+        enable_cuda=enable_cuda,
+        patience=patience,
+        n_epochs=n_epochs,
+        batch_size=batch_size,
+        type_flow=type_flow,
+    )
+
+    nflows_quantile = np.zeros(B_quantile)
+    i = 0
+    for theta_eval in model_eval:
+        lambda_samples = nflow_model.sample(
+            X = theta_eval,
+            num_samples = B_quantile
+            )
+        nflows_quantile[i] = np.quantile(lambda_samples, q = 1 - alpha)
+        i += 1
+
+
+    # dictionary of quantiles
+    quantile_dict = {
+        "nflow": nflows_quantile,
+    }
+
+    return quantile_dict
