@@ -29,6 +29,5 @@ setuptools.setup(
         "xgboost>=2.0",      # Versão 3.x ainda pode ser instável ou não existir
         "seaborn>=0.13",
         "sbibm>=0.1",
-        "hypothesis"
     ],
 )
