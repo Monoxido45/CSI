@@ -54,9 +54,14 @@ def compute_MAE_N_B(
         score.base_model.model.device = torch.device("cpu")
         score.base_model.model.to(torch.device("cpu"))
     else:
-        score = pd.read_pickle(
-            original_path + stats_path + f"{kind}_{score_name}_{N}.pickle"
-        )
+        with open(
+            original_path + stats_path + f"{kind}_{score_name}_{N}.pickle", "rb"
+        ) as f:
+            score = CPU_Unpickler(f).load()
+            score.base_model.device = torch.device("cuda")
+            score.base_model.model.device = torch.device("cuda")
+            score.base_model.model.to("cuda")
+
 
     # creating folder if not existing
     var_path = kind + "/" + score_name
