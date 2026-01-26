@@ -26,3 +26,15 @@ results/*two moons*
 .vscode
 CSI.egg-info
 *.zip*
+results/LFI_real_results/mg1/bff/*data_with_*
+results/LFI_real_results/mg1/e_value/*data_with_*
+results/LFI_real_results/mg1/waldo/*data_with_*
+results/LFI_real_results/sir/bff/*data_with_*
+results/LFI_real_results/sir/e_value/*data_with_*
+results/LFI_real_results/sir/waldo/*data_with_*
+results/LFI_real_results/two moons/bff/*data_with_*
+results/LFI_real_results/two moons/e_value/*data_with_*
+results/LFI_real_results/two moons/waldo/*data_with_*
+results/LFI_real_results/weinberg/bff/*data_with_*
+results/LFI_real_results/weinberg/e_value/*data_with_*
+results/LFI_real_results/weinberg/waldo/*data_with_*

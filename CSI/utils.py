@@ -29,14 +29,12 @@ class CPU_Unpickler(pickle.Unpickler):
         
         return super().find_class(module, name)
 
-
 # class CPU_Unpickler(pickle.Unpickler):
 #    def find_class(self, module, name):
 #        if module == "torch.storage" and name == "_load_from_bytes":
 #            return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
 #        else:
 #            return super().find_class(module, name)
-
 
 def beta_prior(type, sample_size):
     # simulating from beta(1/2, 1/2) for high-dimensional problems
@@ -57,7 +55,6 @@ def beta_prior(type, sample_size):
         prior_tensor = (new_prior.sample((sample_size, 2)) * 2) - 1
     # TODO: add gravitational waves priors
     return prior_tensor
-
 
 # defining naive function
 def naive(
@@ -347,7 +344,6 @@ def naive(
                 quantiles[(par1, par2, par3)] = np.quantile(lambdas, q=1 - alpha)
     return quantiles
 
-
 # prediction function for naive
 def predict_naive_quantile(kind, theta_grid, quantiles_dict):
     thetas_values = np.array(list(quantiles_dict.keys()))
@@ -361,7 +357,6 @@ def predict_naive_quantile(kind, theta_grid, quantiles_dict):
             idx = thetas_values[np.argmin(distances)]
             quantiles_list.append(quantiles_dict[tuple(idx)])
     return quantiles_list
-
 
 def obtain_quantiles_saved_tune(
     kind,
@@ -519,7 +514,6 @@ def obtain_quantiles_saved_tune(
     }
 
     return quantile_dict, K_loforest
-
 
 def obtain_quantiles(
     kind,
@@ -694,7 +688,6 @@ def obtain_quantiles(
 
     return quantile_dict, K_loforest
 
-
 # fitting posterior model
 def fit_post_model(
     simulator,
@@ -780,7 +773,6 @@ def fit_post_model(
 
     return nflow_post
 
-
 def fit_lambda_model(
     theta_train,
     lambda_train,
@@ -830,7 +822,6 @@ def fit_lambda_model(
     )
 
     return nflow_post
-
 
 def obtain_quantiles_saved_tune_nflow(
     kind,
