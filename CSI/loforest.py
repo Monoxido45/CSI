@@ -275,7 +275,6 @@ class ConformalLoforest(BaseEstimator):
         proximity_matrix = (batch_L[:, np.newaxis, :] == self.res_leaves[np.newaxis, :, :]).sum(axis=2)
         
         return proximity_matrix.astype(np.int16)
-    
 
     def quantile_CI(self, local_res, alpha=0.05):
         """
@@ -326,7 +325,7 @@ class ConformalLoforest(BaseEstimator):
         compute_CI=False, 
         breiman_mat=None,
         alpha_CI=0.05,
-        batch_size=10000,
+        batch_size=5000,
         by_batch=True,
     ):
         # if weighting is enabled
@@ -353,6 +352,7 @@ class ConformalLoforest(BaseEstimator):
         if by_batch:
             # batch processing loop
             for start in range(0, test_size, batch_size):
+                print(f"Processing batch {start} to {min(start + batch_size, test_size)}")
                 end = min(start + batch_size, test_size)
                 
                 # Compute proximity for this batch
