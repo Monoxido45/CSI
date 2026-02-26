@@ -324,8 +324,10 @@ class ConformalLoforest(BaseEstimator):
         X, 
         K=None, 
         compute_CI=False, 
+        breiman_mat=None,
         alpha_CI=0.05,
-        batch_size=5000,
+        batch_size=10000,
+        by_batch=True,
     ):
         # if weighting is enabled
         if self.weighting:
@@ -348,40 +350,77 @@ class ConformalLoforest(BaseEstimator):
         if compute_CI:
             lower_bound, upper_bound = np.zeros(test_size), np.zeros(test_size)
 
-        # batch processing loop
-        for start in range(0, test_size, batch_size):
-            end = min(start + batch_size, test_size)
-            
-            # Compute proximity for this batch
-            breiman_batch = self.compute_breiman_matrix_batch(self.leaves_obs, start, end)
-
-            # Compute local statistics for each point in the batch
-            for i in range(breiman_batch.shape[0]):
-                global_idx = start + i
+        if by_batch:
+            # batch processing loop
+            for start in range(0, test_size, batch_size):
+                end = min(start + batch_size, test_size)
                 
-                # Identify local neighborhood: points sharing >= M (or K) leaves
-                obs_idx = np.where(breiman_batch[i, :] >= K)[0]
+                # Compute proximity for this batch
+                breiman_batch = self.compute_breiman_matrix_batch(self.leaves_obs, start, end)
+
+                # Compute local statistics for each point in the batch
+                for i in range(breiman_batch.shape[0]):
+                    global_idx = start + i
+                    
+                    # Identify local neighborhood: points sharing >= M (or K) leaves
+                    obs_idx = np.where(breiman_batch[i, :] >= K)[0]
+                    local_res = self.res_vector[obs_idx]
+
+                    # Adjusted Quantile Logic
+                    if local_res.size == 0:
+                        n_g = self.res_vector.size
+                        q_adj = np.ceil((n_g + 1) * (1 - self.alpha)) / n_g
+                        cutoffs[global_idx] = np.quantile(self.res_vector, q=min(q_adj, 1.0))
+                    else:
+                        n_l = local_res.size
+                        q_adj = np.ceil((n_l + 1) * (1 - self.alpha)) / n_l
+                        
+                        if q_adj > 1.0:
+                            cutoffs[global_idx] = np.max(local_res)
+                        else:
+                            cutoffs[global_idx] = np.quantile(local_res, q=q_adj)
+
+                        if compute_CI:
+                            l, u = self.quantile_CI(local_res, alpha=alpha_CI)
+                            lower_bound[global_idx], upper_bound[global_idx] = l, u
+
+        else:
+            # computing breiman matrix
+            if breiman_mat is None:
+                breiman_matrix = self.compute_breiman_matrix(X_tree)
+            else:
+                breiman_matrix = breiman_mat
+
+            for i in range(0, test_size):
+                obs_idx = np.where(breiman_matrix[i, :] >= K)[0]
+
+                # obtaining cutoff based on found residuals
                 local_res = self.res_vector[obs_idx]
 
-                # 5. Adjusted Quantile Logic (Adhering to Theorem 2)
-                if local_res.size == 0:
-                    # Global fallback if neighborhood is empty
-                    n_g = self.res_vector.size
-                    q_adj = np.ceil((n_g + 1) * (1 - self.alpha)) / n_g
-                    cutoffs[global_idx] = np.quantile(self.res_vector, q=min(q_adj, 1.0))
+                # checking if local_res is empty
+                # if it is, use global cutoff
+                if local_res.shape[0] == 0:
+                    n = self.res_vector.shape[0]
+                    cutoffs[i] = np.quantile(
+                        self.res_vector, q=np.ceil((n + 1) * (1 - self.alpha)) / n
+                    )
+                # else, use local cutoff
                 else:
-                    n_l = local_res.size
-                    # Finite-sample correction from the paper
-                    q_adj = np.ceil((n_l + 1) * (1 - self.alpha)) / n_l
-                    
-                    if q_adj > 1.0:
-                        cutoffs[global_idx] = np.max(local_res)
-                    else:
-                        cutoffs[global_idx] = np.quantile(local_res, q=q_adj)
+                    n = local_res.shape[0]
+                    # quantile correction only when n is large
+                    # if correction is larger than 1, than use 1-alpha
+                    correction = np.ceil((n + 1) * (1 - self.alpha)) / n
 
-                    if compute_CI:
-                        l, u = self.quantile_CI(local_res, alpha=alpha_CI)
-                        lower_bound[global_idx], upper_bound[global_idx] = l, u
+                    if correction > 1:
+                        cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
+                    else:
+                        cutoffs[i] = np.quantile(local_res, q=correction)
+
+                # if compute CI, obtaining also the upper and lower bound of CI
+                if compute_CI:
+                    lower_bound[i], upper_bound[i] = self.quantile_CI(
+                        local_res, alpha=alpha_CI
+                    )
 
         if not compute_CI:
             return cutoffs
