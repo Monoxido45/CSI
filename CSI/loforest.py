@@ -244,6 +244,8 @@ class ConformalLoforest(BaseEstimator):
         return cart_pred.var(1)
 
     def compute_breiman_matrix(self, X_test, leaves_obs_comp=False):
+        # slow breiman matrix computation
+        # memory intensive but fast to compute for small datasets
         test_size = X_test.shape[0]
         if leaves_obs_comp:
             leaves_obs = self.leaves_obs
@@ -251,25 +253,29 @@ class ConformalLoforest(BaseEstimator):
             leaves_obs = self.RF.apply(X_test)
         calib_size = self.res_leaves.shape[0]
 
-        # Define a function to compute a single row of the Breiman matrix
-        def compute_breiman_row(i):
-            leaves_obs_sel = self.leaves_obs[i, :]
-            matches = self.res_leaves == leaves_obs_sel
-            return matches.sum(axis=1)
-
-        breiman_matrix = np.zeros((test_size, calib_size))
+        breiman_matrix = np.zeros((test_size, calib_size), dtype = np.int16)
         for i in range(test_size):
             leaves_obs_sel = leaves_obs[i, :]
             matches = self.res_leaves == leaves_obs_sel
             breiman_matrix[i, :] = matches.sum(axis=1)
 
-        # Vectorize the function
-        # vectorized_compute_breiman_row = np.vectorize(compute_breiman_row)
-
-        # Use the vectorized function to compute the Breiman matrix
-        # breiman_matrix = vectorized_compute_breiman_row(np.arange(test_size))
 
         return breiman_matrix
+    
+    def compute_breiman_matrix_batch(self, leaves_test, batch_start, batch_end):
+        """
+        Computes a batch of the Breiman proximity matrix using vectorized broadcasting.
+        """
+        # Slice the test leaves for the current batch
+        batch_L = leaves_test[batch_start:batch_end] # Shape: (batch_size, K)
+        
+        # Vectorized comparison: (batch, 1, K) == (1, calib, K)
+        # Summing over axis 2 gives the proximity count (number of shared leaves)
+        # Using int16 saves 75% memory compared to the default float64
+        proximity_matrix = (batch_L[:, np.newaxis, :] == self.res_leaves[np.newaxis, :, :]).sum(axis=2)
+        
+        return proximity_matrix.astype(np.int16)
+    
 
     def quantile_CI(self, local_res, alpha=0.05):
         """
@@ -314,7 +320,12 @@ class ConformalLoforest(BaseEstimator):
         return lim_inf, lim_sup
 
     def compute_cutoffs(
-        self, X, K=None, breiman_mat=None, compute_CI=False, alpha_CI=0.05
+        self, 
+        X, 
+        K=None, 
+        compute_CI=False, 
+        alpha_CI=0.05,
+        batch_size=5000,
     ):
         # if weighting is enabled
         if self.weighting:
@@ -331,53 +342,46 @@ class ConformalLoforest(BaseEstimator):
             self.leaves_obs = self.bagging_apply(X_tree)
 
         test_size = X_tree.shape[0]
-
-        # cutoffs array
         cutoffs = np.zeros(test_size)
-
-        # computing breiman matrix
-        if breiman_mat is None:
-            breiman_matrix = self.compute_breiman_matrix(X_tree)
-        else:
-            breiman_matrix = breiman_mat
-
-        # choosing K again
-        if K is None:
-            K = self.K
+        K = K if K is not None else self.K
 
         if compute_CI:
             lower_bound, upper_bound = np.zeros(test_size), np.zeros(test_size)
 
-        for i in range(0, test_size):
-            obs_idx = np.where(breiman_matrix[i, :] >= K)[0]
+        # batch processing loop
+        for start in range(0, test_size, batch_size):
+            end = min(start + batch_size, test_size)
+            
+            # Compute proximity for this batch
+            breiman_batch = self.compute_breiman_matrix_batch(self.leaves_obs, start, end)
 
-            # obtaining cutoff based on found residuals
-            local_res = self.res_vector[obs_idx]
+            # Compute local statistics for each point in the batch
+            for i in range(breiman_batch.shape[0]):
+                global_idx = start + i
+                
+                # Identify local neighborhood: points sharing >= M (or K) leaves
+                obs_idx = np.where(breiman_batch[i, :] >= K)[0]
+                local_res = self.res_vector[obs_idx]
 
-            # checking if local_res is empty
-            # if it is, use global cutoff
-            if local_res.shape[0] == 0:
-                n = self.res_vector.shape[0]
-                cutoffs[i] = np.quantile(
-                    self.res_vector, q=np.ceil((n + 1) * (1 - self.alpha)) / n
-                )
-            # else, use local cutoff
-            else:
-                n = local_res.shape[0]
-                # quantile correction only when n is large
-                # if correction is larger than 1, than use 1-alpha
-                correction = np.ceil((n + 1) * (1 - self.alpha)) / n
-
-                if correction > 1:
-                    cutoffs[i] = np.quantile(local_res, q=1 - self.alpha)
+                # 5. Adjusted Quantile Logic (Adhering to Theorem 2)
+                if local_res.size == 0:
+                    # Global fallback if neighborhood is empty
+                    n_g = self.res_vector.size
+                    q_adj = np.ceil((n_g + 1) * (1 - self.alpha)) / n_g
+                    cutoffs[global_idx] = np.quantile(self.res_vector, q=min(q_adj, 1.0))
                 else:
-                    cutoffs[i] = np.quantile(local_res, q=correction)
+                    n_l = local_res.size
+                    # Finite-sample correction from the paper
+                    q_adj = np.ceil((n_l + 1) * (1 - self.alpha)) / n_l
+                    
+                    if q_adj > 1.0:
+                        cutoffs[global_idx] = np.max(local_res)
+                    else:
+                        cutoffs[global_idx] = np.quantile(local_res, q=q_adj)
 
-            # if compute CI, obtaining also the upper and lower bound of CI
-            if compute_CI:
-                lower_bound[i], upper_bound[i] = self.quantile_CI(
-                    local_res, alpha=alpha_CI
-                )
+                    if compute_CI:
+                        l, u = self.quantile_CI(local_res, alpha=alpha_CI)
+                        lower_bound[global_idx], upper_bound[global_idx] = l, u
 
         if not compute_CI:
             return cutoffs

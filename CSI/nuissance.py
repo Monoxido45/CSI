@@ -191,7 +191,6 @@ def TRUST_nuisance_cutoffs(
                 i += 1
     return cutoff_nuis
 
-
 def TRUST_plus_nuisance_cutoff(
     trust_plus_obj,
     nuissance_idx,
@@ -199,6 +198,8 @@ def TRUST_plus_nuisance_cutoff(
     K=100,
     strategy="all_cutoffs",
     total_h_cutoffs=50,
+    compute_CI = False,
+    alpha_CI = 0.05
 ):
     """
     Computes nuisance cutoffs for a given TRUST+ object based on the specified strategy.
@@ -237,6 +238,12 @@ def TRUST_plus_nuisance_cutoff(
     n_trees = len(trust_plus_obj.RF.estimators_)
     threshold_list = []
     feature_list = []
+
+    if compute_CI:
+        lower_bound_nuis, upper_bound_nuis = (
+                np.zeros(par_values.shape[0]), 
+                np.zeros(par_values.shape[0])
+            )
 
     if strategy == "all_cutoffs":
         # returning all thresholds for each tree
@@ -310,7 +317,6 @@ def TRUST_plus_nuisance_cutoff(
         # choosing eps by pairwise distances
         dists = pairwise_distances(thres.reshape(-1, 1))
         upper_triangular_indices = np.triu_indices(dists.shape[0], k=1)
-        eps = np.min(dists[upper_triangular_indices]) * 1 / 3
 
         nuis_values = np.concatenate((thres - eps, thres + eps), axis=None)
         print(f"Using {nuis_values.shape[0]} nuisance candidates")
@@ -319,20 +325,40 @@ def TRUST_plus_nuisance_cutoff(
         par_reorder = np.concatenate((par_idx, nuissance_idx), axis=None)
 
         i = 0
+        max_list = []
         for par in tqdm(
             par_values, desc="Computing nuisance cutoffs for each parameter value"
         ):
+            
             par_array = np.tile(par, reps=(nuis_values.shape[0], 1))
             new_par = np.column_stack((par_array, nuis_values))
 
             # reordering columns
             new_par = new_par[:, par_reorder]
 
+            # index of max
+            max_idx = np.argmax(cutoff_vector)
+            max_list.append(new_par[max_idx, :])
+
+            if compute_CI:
+                par_CI = new_par[max_idx, :].reshape(1, -1)
+                _, lower_bound, upper_bound = (
+                    trust_plus_obj.compute_cutoffs(
+                    par_CI, 
+                    K = K, 
+                    compute_CI = compute_CI,
+                    alpha_CI = alpha_CI
+                    )
+                )
+                lower_bound_nuis[i] = lower_bound[0]
+                upper_bound_nuis[i] = upper_bound[0]
+
             # computing cutoffs for new par
             cutoff_vector = trust_plus_obj.compute_cutoffs(new_par, K=K)
 
             # returning minimal value
             cutoff_nuis[i] = np.max(cutoff_vector)
+            
             i += 1
     else:
         # reordering parameters order
@@ -341,6 +367,7 @@ def TRUST_plus_nuisance_cutoff(
 
         # looping through all used nuisance features
         feature_idx = np.unique(feature_nuis)
+        print(f"Using {feature_idx.shape[0]} nuisance features")
 
         nuis_list = []
         used_idx_list = []
@@ -351,7 +378,12 @@ def TRUST_plus_nuisance_cutoff(
 
             dists = pairwise_distances(thres_sel.reshape(-1, 1))
             upper_triangular_indices = np.triu_indices(dists.shape[0], k=1)
-            eps = np.min(dists[upper_triangular_indices]) * 1 / 3
+
+            # Check if we have at least two points to calculate a distance
+            if dists[upper_triangular_indices].size > 0:
+                eps = np.min(dists[upper_triangular_indices]) * 1 / 3
+            else:
+                eps = 0.05  # Default epsilon if only one threshold exists
 
             nuis_values = np.concatenate((thres_sel - eps, thres_sel + eps), axis=None)
             nuis_list.append(nuis_values)
@@ -398,6 +430,19 @@ def TRUST_plus_nuisance_cutoff(
             max_idx = np.argmax(cutoff_vector)
             max_list.append(new_par[max_idx, :])
 
+            if compute_CI:
+                par_CI = new_par[max_idx, :].reshape(1, -1)
+                _, lower_bound, upper_bound = (
+                    trust_plus_obj.compute_cutoffs(
+                    par_CI, 
+                    K = K, 
+                    compute_CI = compute_CI,
+                    alpha_CI = alpha_CI
+                    )
+                )
+                lower_bound_nuis[i] = lower_bound[0]
+                upper_bound_nuis[i] = upper_bound[0]
+
             if i == 0:
                 print(cutoff_vector)
                 print(new_par[np.arange(0, 5)])
@@ -406,4 +451,7 @@ def TRUST_plus_nuisance_cutoff(
             cutoff_nuis[i] = np.max(cutoff_vector)
             i += 1
 
-    return cutoff_nuis, max_list
+    if compute_CI:
+        return cutoff_nuis, max_list, lower_bound_nuis, upper_bound_nuis
+    else:
+        return cutoff_nuis, max_list
