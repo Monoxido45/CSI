@@ -344,7 +344,7 @@ cutoff_beta_TRUST_plus, max_TRUST_plus = TRUST_plus_nuisance_cutoff(
     par_values = beta_nuis_space.reshape(-1, 1),
     K = 100,
     strategy = "horizontal_cutoffs",
-    total_h_cutoffs = 30,
+    total_h_cutoffs = total_h_cutoffs,
     by_batch = True,
     use_jax = False,
 )
@@ -457,9 +457,8 @@ def coverage_nuisance_glm(cutoff_array_trust,
                       par_idx,
                       n_lambda = 500,
                       alpha = 0.05):
-    coverage_trust, coverage_trust_plus = np.zeros(
-        valid_thetas.shape[0]), np.zeros(
-            valid_thetas.shape[0])
+    coverage_trust = np.zeros(valid_thetas.shape[0])
+    coverage_trust_plus = np.zeros(valid_thetas.shape[0])
     coverage_boosting = np.zeros(valid_thetas.shape[0])
     coverage_naive = np.zeros(valid_thetas.shape[0])
     cutoff_trust_list, cutoff_trust_plus_list = [], []
@@ -572,7 +571,7 @@ nuisance_glm_list = coverage_nuisance_glm(
     par_space = beta_nuis_space,
     par_idx = np.array([1]),
     glm_class = glm_class,
-    n_lambda = 100,
+    n_lambda = 500,
     )
 
 trust_plus_coverage = nuisance_glm_list[1]
