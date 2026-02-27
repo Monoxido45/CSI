@@ -95,7 +95,7 @@ def TRUST_nuisance_cutoffs(
         par_reorder = np.argsort(np.concatenate((par_idx, nuissance_idx), axis=None))
 
         # finding indexes for nuisance threshold
-        idxs_thres = np.where(np.in1d(feature_array, nuissance_idx))
+        idxs_thres = np.where(np.isin(feature_array, nuissance_idx))
         thres = threshold_array[idxs_thres]
 
         # if there are any nuisance thresholds
@@ -336,10 +336,6 @@ def TRUST_plus_nuisance_cutoff(
             # reordering columns
             new_par = new_par[:, par_reorder]
 
-            # index of max
-            max_idx = np.argmax(cutoff_vector)
-            max_list.append(new_par[max_idx, :])
-
             if compute_CI:
                 par_CI = new_par[max_idx, :].reshape(1, -1)
                 _, lower_bound, upper_bound = (
@@ -355,6 +351,10 @@ def TRUST_plus_nuisance_cutoff(
 
             # computing cutoffs for new par
             cutoff_vector = trust_plus_obj.compute_cutoffs(new_par, K=K)
+
+            # index of max
+            max_idx = np.argmax(cutoff_vector)
+            max_list.append(new_par[max_idx, :])
 
             # returning minimal value
             cutoff_nuis[i] = np.max(cutoff_vector)
