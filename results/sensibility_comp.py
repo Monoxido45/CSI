@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import sbibm
 from sklearn.metrics import pairwise_distances
 import pandas as pd
