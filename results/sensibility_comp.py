@@ -20,11 +20,11 @@ import torch
 # paths
 original_path = os.getcwd()
 stats_path = "/results/LFI_objects/data/"
-tune_path = "/results/LFI_objects/tune_data/"
+tune_path = "/resuls/LFI_objects/tune_data/"
 stats_eval_path = "/results/LFI_objects/stat_data/"
 
 alpha = 0.05
-B = 10000
+B = 15000
 N = 5
 # two moons task
 task = sbibm.get_task(
@@ -40,7 +40,7 @@ thetas_valid = np.c_[list(itertools.product(pars_1, pars_1))]
 
 # importing BFF score
 with open(
-    original_path + stats_path + f"two_moons_bff_{N}.pickle", "rb"
+    original_path + stats_path + f"two moons_bff_{N}.pickle", "rb"
 ) as f:
     score = CPU_Unpickler(f).load()
 score.base_model.device = torch.device("cpu")
@@ -51,7 +51,7 @@ score.base_model.model.to(torch.device("cpu"))
 with open(
     original_path
     + stats_eval_path
-    + f"two_moons_bff_eval_{N}.pickle",
+    + f"two moons_bff_eval_{N}.pickle",
     "rb",
 ) as f:
     stat_dict = CPU_Unpickler(f).load()
@@ -80,8 +80,8 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
     
     # Ranges to test (Based on Section 4 defaults)
     test_params = {
-        'n_estimators': [50, 100, 200, 400],    # Paper default: 200 
-        'min_samples_leaf': [100, 200, 300, 500, 750, 1000], # Paper defaults: 300 
+        'n_estimators': [50, 100, 200, 400, 500, 700],    # Paper default: 200 
+        'min_samples_leaf': [50, 100, 200, 300, 500, 750, 1000, 1250], # Paper defaults: 300 
         'max_depth': [5, 10, 20, None]           # Paper default: None 
     }
     
@@ -129,14 +129,16 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
                     n_estimators=config['n_estimators'],
                     min_samples_leaf=config['min_samples_leaf'],
                     max_depth=config['max_depth'],
-                    K=np.ceil(config['n_estimators'] / 2).astype(int),
-                    by_batch=True,
-                    use_jax=False,
+                    K=np.ceil(config['n_estimators'] / 2).astype(int)
                 )
                 
                 # 3. Evaluate on the valid grid (using pre-simulated evaluation stats)
                 model_eval = thetas_valid.reshape(-1, 1) if thetas_valid.ndim == 1 else thetas_valid
-                loforest_cutoffs = trust_plus_object.compute_cutoffs(model_eval) 
+                loforest_cutoffs = trust_plus_object.compute_cutoffs(
+                  model_eval,
+                  by_batch=True,
+                  use_jax=False,
+                  ) 
 
                 err_loforest = []
                 for l, theta in enumerate(thetas_valid):
@@ -150,9 +152,14 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
                 mae = np.mean(err_loforest)
                 runtime = time.time() - start_time
                 
+                if val is None:
+                  val_display = 0
+                else:
+                  val_display = val
+                
                 all_runs_data.append({
                     'Parameter': param,
-                    'Value': val,
+                    'Value': val_display,
                     'Repetition': rep,
                     'MAE': mae,
                     'Runtime (s)': runtime
@@ -173,10 +180,10 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
     return final_summary
 
 # Execute the analysis
-summary_df = run_sensitivity_analysis(n_repetitions=20)
+summary_df = run_sensitivity_analysis(n_repetitions=30)
 
 # Display results sorted by parameter
-print("\n--- Sensitivity Analysis Summary (Averaged over 20 reps) ---")
+print("\n--- Sensitivity Analysis Summary (Averaged over 30 reps) ---")
 print(summary_df.sort_values(['Parameter', 'Value']))
 
 out_dir = os.path.join(original_path, "sensitivity_results")

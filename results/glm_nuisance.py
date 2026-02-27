@@ -73,11 +73,11 @@ def naive_nuisance(
         idx_array = np.arange(0,par_size)
         par_idx = np.setdiff1d(idx_array, nuisance_idx)
 
-        beta_b_nuis_space = np.linspace(-1.00, 1.00, 
+        beta_b_nuis_space = np.linspace(-1.9, 1.9, 
                                         int(np.ceil(n_grid ** (1 / par_size))))
-        beta_0_nuis_space = np.linspace(-1.5, 1.5,
+        beta_0_nuis_space = np.linspace(-3, 3,
                                         int(np.ceil(n_grid ** (1 / par_size))))
-        phi_nuis_space = np.linspace(0.15,1.5,
+        phi_nuis_space = np.linspace(0.05,1.745,
                                      int(np.ceil(n_grid ** (1 / par_size))))
         
         par_list = [beta_0_nuis_space]
@@ -131,7 +131,13 @@ def naive_nuisance_cutoff_glm(
         new_par = new_par[:, par_reorder]
 
         # computing cutoffs with naive
-        cutoff_vector = np.array(predict_naive_quantile(kind = "glm", theta_grid = new_par, quantiles_dict = naive_quantiles))
+        cutoff_vector = np.array(
+          predict_naive_quantile(
+            kind = "glm", 
+            theta_grid = new_par, 
+            quantiles_dict = naive_quantiles
+            )
+            )
 
         # returning minimal value
         cutoff_nuis[i] = np.max(cutoff_vector)
@@ -179,21 +185,21 @@ def boosting_nuisance_cutoff(
         i += 1
     return cutoff_nuis
 
-# beta_0 parameters space and prior: N(0,1)
-# all other beta parameters space and prior: N(0,0.5)
+# beta_0 parameters space and prior: N(0,4)
+# all other beta parameters space and prior: N(0,1)
 # phi parameter space and prior: truncated exponential with scale 0.5, truncated at 1.75
 def prior(n, rng, intercept_value = None, dim = 4):
     if intercept_value is None:
         betas = rng.normal(loc = 
                        np.repeat(0, dim+1), 
                        scale = np.concatenate(
-                           (np.array([1.0]), np.repeat(0.5, dim))
+                           (np.array([2.0]), np.repeat(1, dim))
                            ),
                         size = (n, dim+1)
                        )
     else:
         betas = rng.normal(loc = 0,
-                           scale = 0.5,
+                           scale = 1,
                            size = (n, dim))
         betas = np.column_stack((np.repeat(intercept_value, n),
                                  betas))
@@ -299,7 +305,7 @@ naive_quantiles = naive_nuisance(
 valid_rng = np.random.default_rng(67)
 # fixing beta_1 values separately and aim to cover expected range of beta_1
 n_nuis = 20
-beta_nuis_space = np.linspace(-1.25, 1.25, n_nuis)
+beta_nuis_space = np.linspace(-2, 2, n_nuis)
 n_valid = 50
 beta_space, phi_space = prior(n = n_valid, rng = valid_rng)
 # joining parameters together
@@ -316,11 +322,11 @@ valid_thetas = np.insert(valid_tile, 1, beta_1_tile, axis = 1)
 idx_1 = np.array([1])
 par_size = beta_dim + 1 - len(idx_1)
 
-beta_b_nuis_space = np.linspace(-1.5, 1.5, 
+beta_b_nuis_space = np.linspace(-1.9, 1.9, 
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
-beta_0_nuis_space = np.linspace(-2, 2,
+beta_0_nuis_space = np.linspace(-3, 3,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
-phi_nuis_space = np.linspace(0.05,1.75,
+phi_nuis_space = np.linspace(0.05,1.745,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
                                 
 par_list = [beta_0_nuis_space]
