@@ -4,6 +4,7 @@ from sklearn.metrics import pairwise_distances
 import pandas as pd
 import statsmodels.api as sm
 import scipy.stats as st
+from argparse import ArgumentParser
 
 from CSI.scores import LambdaScore
 from CSI.loforest import ConformalLoforest
@@ -17,6 +18,31 @@ import torch
 from CSI.simulations import GLM_stat
 import itertools
 from tqdm import tqdm
+import os
+import pickle
+
+parser = ArgumentParser()
+parser.add_argument("-beta_dim", "--beta_dim", type=int, default=5, help="number of beta parameters in the GLM model")
+parser.add_argument("-total_h_cutoffs", "--total_h_cutoffs", type=int, default=40, help="number of horizontal cutoffs to use for TRUST++")
+parser.add_argument("-total_grid_size", "--total_grid_size", type=int, default=140000, 
+                    help="total grid size to use for computing cutoffs with boosting and naive method")
+parser.add_argument("-naive_n", "--naive_n", type=int, default=500, help="number of samples to use for computing cutoffs with naive method")
+parser.add_argument("-seed", "--seed", type=int, default=45, help="seed for random generator")
+parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
+parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing distance to oracle")
+parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples to use for generating validation grid")
+parser.add_argument("-B", "--B", type=int, default=10000, help="number of samples to use for training the methods and computing cutoffs")
+args = parser.parse_args()
+
+beta_dim = args.beta_dim
+total_h_cutoffs = args.total_h_cutoffs
+total_grid_size = args.total_grid_size
+naive_n = args.naive_n
+seed = args.seed
+alpha = args.alpha
+n_rep = args.n_rep
+n_samples = args.n_samples
+B = args.B
 
 # naive nuisance cutoff for GLM
 def predict_naive_quantile(kind, theta_grid, quantiles_dict):
@@ -175,11 +201,10 @@ def prior(n, rng, intercept_value = None, dim = 4):
     return betas, phi
 
 # prior and X with more dimensions
-n = 50
-np.random.seed(45)
-rng = np.random.default_rng(45)
+n = n_samples
+np.random.seed(seed)
+rng = np.random.default_rng(seed)
 # starting with 5 dimensions for betas, but will change it to 10 for further testing
-beta_dim = 5
 X_mat = rng.uniform(-1, 1, (n, beta_dim-1))
 
 # Generate response variable with Gamma noise
@@ -208,7 +233,6 @@ glm_class
 
 ############# Training step ##############
 print("Sampling from the parameter prior and simulating sample:")
-B = 10000
 # using GLM class
 thetas_sim, model_lambdas = glm_class.LR_sample(
     B = B, 
@@ -224,7 +248,7 @@ else:
 print("Fitting our methods: ")
 print("Fitting TRUST ")
 trust_object = LocartSplit(
-        LambdaScore, None, alpha=0.05, is_fitted=True, split_calib=False
+        LambdaScore, None, alpha=alpha, is_fitted=True, split_calib=False
     )
 trust_quantiles = trust_object.calib(
     thetas_sim, model_lambdas, min_samples_leaf=150
@@ -259,7 +283,7 @@ nuisance_idx = np.delete(np.arange(0, beta_dim + 1), 1)
 # training monte carlo
 naive_quantiles = naive_nuisance(
     kind = "glm",
-    alpha = 0.05,
+    alpha = alpha,
     nuisance_idx = nuisance_idx,
     par_size = beta_dim + 1,
     B = B,
@@ -268,12 +292,13 @@ naive_quantiles = naive_nuisance(
 
 
 ############# Nuisance cutoffs for each method ##############
-# validation grid
+# random validation grid
 valid_rng = np.random.default_rng(67)
-# fixing only beta_1 values
-beta_nuis_space = np.linspace(-1.25, 1.25, 15)
-
-beta_space, phi_space = prior(n = 50, rng = valid_rng)
+# fixing beta_1 values separately and aim to cover expected range of beta_1
+n_nuis = 15
+beta_nuis_space = np.linspace(-1.25, 1.25, n_nuis)
+n_valid = 50
+beta_space, phi_space = prior(n = n_valid, rng = valid_rng)
 # joining parameters together
 valid_thetas = np.concatenate(
     (beta_space, phi_space.reshape(-1, 1)), axis=1)
@@ -281,20 +306,18 @@ valid_thetas = np.concatenate(
 valid_thetas_del = np.delete(valid_thetas, 1, axis = 1)
 
 # obtaining combination
-valid_tile = np.tile(valid_thetas_del, (15,1))
-beta_1_tile = np.tile(beta_nuis_space, 50)
+valid_tile = np.tile(valid_thetas_del, (n_nuis,1))
+beta_1_tile = np.tile(beta_nuis_space, n_valid)
 valid_thetas = np.insert(valid_tile, 1, beta_1_tile, axis = 1)
 
-
 idx_1 = np.array([1])
-total_grid_size = 140000
 par_size = beta_dim + 1 - len(idx_1)
 
 beta_b_nuis_space = np.linspace(-1.25, 1.25, 
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
 beta_0_nuis_space = np.linspace(-1.5, 1.5,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
-phi_nuis_space = np.linspace(0.05,1.75,
+phi_nuis_space = np.linspace(0.1,1.65,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
 par_list = [beta_0_nuis_space]
 for i in range(1, par_size - 1):
@@ -325,7 +348,7 @@ cutoff_beta_boosting = boosting_nuisance_cutoff(
     nuisance_grid = nuisance_grid_boosting, 
     nuissance_idx= nuisance_idx,
     par_values = beta_nuis_space.reshape(-1, 1),
-    )
+)
 
 cutoff_beta_naive = naive_nuisance_cutoff_glm(
     naive_quantiles,
@@ -567,3 +590,11 @@ diff_list = oracle_dist_glm(
     par_idx = np.array([1]),
     n_lambda = 100,
 )
+current_dir = os.getcwd()
+
+out_dir = os.path.join(current_dir, "results/nuisance_results")
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, f"diff_list_beta_dim{beta_dim}.pkl")
+with open(outfile, "wb") as f:
+    pickle.dump(diff_list, f, protocol=pickle.HIGHEST_PROTOCOL)
+print(f"Saved diff_list to {outfile}")
