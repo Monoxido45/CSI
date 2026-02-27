@@ -261,7 +261,6 @@ class ConformalLoforest(BaseEstimator):
             matches = self.res_leaves == leaves_obs_sel
             breiman_matrix[i, :] = matches.sum(axis=1)
 
-
         return breiman_matrix
     
     def compute_breiman_matrix_batch(self, leaves_test, batch_start, batch_end, use_jax = True):
@@ -269,11 +268,12 @@ class ConformalLoforest(BaseEstimator):
         Computes a batch of the Breiman proximity matrix using vectorized broadcasting.
         """
         if not use_jax:
-            # Slice the test leaves for the current batch
-            batch_L = leaves_test[batch_start:batch_end] # Shape: (batch_size, K)
-            
-            # Vectorized comparison: (batch, 1, K) == (1, calib, K)
-            proximity_matrix = (batch_L[:, np.newaxis, :] == self.res_leaves[np.newaxis, :, :]).sum(axis=2)
+            batch_L = leaves_test[batch_start:batch_end] 
+            calib_L = self.res_leaves                    
+            proximity = np.zeros((batch_L.shape[0], calib_L.shape[0]), dtype=np.int16)
+            for k in range(batch_L.shape[1]): # Loop over trees (K is small, e.g., 200)
+                proximity += (batch_L[:, [k]] == calib_L[:, k]).astype(np.int16)
+            proximity_matrix = proximity
         else:
             # Convert numpy arrays to JAX arrays (this is the only overhead)
             batch_j = jnp.array(leaves_test[batch_start:batch_end])
@@ -350,6 +350,7 @@ class ConformalLoforest(BaseEstimator):
         alpha_CI=0.05,
         batch_size=5000,
         by_batch=True,
+        use_jax=True
     ):
         # if weighting is enabled
         if self.weighting:
@@ -379,7 +380,12 @@ class ConformalLoforest(BaseEstimator):
                 end = min(start + batch_size, test_size)
                 
                 # Compute proximity for this batch
-                breiman_batch = self.compute_breiman_matrix_batch(self.leaves_obs, start, end)
+                breiman_batch = self.compute_breiman_matrix_batch(
+                    self.leaves_obs,
+                    start,
+                    end,
+                    use_jax=use_jax,
+                    )
 
                 # Compute local statistics for each point in the batch
                 for i in range(breiman_batch.shape[0]):

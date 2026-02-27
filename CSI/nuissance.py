@@ -199,7 +199,9 @@ def TRUST_plus_nuisance_cutoff(
     strategy="all_cutoffs",
     total_h_cutoffs=50,
     compute_CI = False,
-    alpha_CI = 0.05
+    alpha_CI = 0.05,
+    by_batch = True,
+    use_jax = True,
 ):
     """
     Computes nuisance cutoffs for a given TRUST+ object based on the specified strategy.
@@ -343,14 +345,21 @@ def TRUST_plus_nuisance_cutoff(
                     par_CI, 
                     K = K, 
                     compute_CI = compute_CI,
-                    alpha_CI = alpha_CI
+                    alpha_CI = alpha_CI,
+                    by_batch = by_batch,
+                    use_jax = use_jax,
                     )
                 )
                 lower_bound_nuis[i] = lower_bound[0]
                 upper_bound_nuis[i] = upper_bound[0]
 
             # computing cutoffs for new par
-            cutoff_vector = trust_plus_obj.compute_cutoffs(new_par, K=K)
+            cutoff_vector = trust_plus_obj.compute_cutoffs(
+                new_par, 
+                K=K,
+                by_batch = by_batch,
+                use_jax = use_jax,
+                )
 
             # index of max
             max_idx = np.argmax(cutoff_vector)
@@ -424,7 +433,11 @@ def TRUST_plus_nuisance_cutoff(
             new_par = new_par[:, par_reorder]
 
             # computing cutoffs for new par
-            cutoff_vector = trust_plus_obj.compute_cutoffs(new_par, K=K)
+            cutoff_vector = trust_plus_obj.compute_cutoffs(
+                new_par, 
+                K=K,
+                by_batch = by_batch,
+                use_jax = use_jax,)
 
             # index of max
             max_idx = np.argmax(cutoff_vector)
@@ -437,7 +450,9 @@ def TRUST_plus_nuisance_cutoff(
                     par_CI, 
                     K = K, 
                     compute_CI = compute_CI,
-                    alpha_CI = alpha_CI
+                    alpha_CI = alpha_CI,
+                    by_batch = by_batch,
+                    use_jax = use_jax,
                     )
                 )
                 lower_bound_nuis[i] = lower_bound[0]
