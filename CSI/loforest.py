@@ -6,6 +6,8 @@ from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 from scipy.stats import binom
+import jax
+import jax.numpy as jnp
 
 
 class ConformalLoforest(BaseEstimator):
@@ -262,19 +264,40 @@ class ConformalLoforest(BaseEstimator):
 
         return breiman_matrix
     
-    def compute_breiman_matrix_batch(self, leaves_test, batch_start, batch_end):
+    def compute_breiman_matrix_batch(self, leaves_test, batch_start, batch_end, use_jax = True):
         """
         Computes a batch of the Breiman proximity matrix using vectorized broadcasting.
         """
-        # Slice the test leaves for the current batch
-        batch_L = leaves_test[batch_start:batch_end] # Shape: (batch_size, K)
-        
-        # Vectorized comparison: (batch, 1, K) == (1, calib, K)
-        # Summing over axis 2 gives the proximity count (number of shared leaves)
-        # Using int16 saves 75% memory compared to the default float64
-        proximity_matrix = (batch_L[:, np.newaxis, :] == self.res_leaves[np.newaxis, :, :]).sum(axis=2)
-        
+        if not use_jax:
+            # Slice the test leaves for the current batch
+            batch_L = leaves_test[batch_start:batch_end] # Shape: (batch_size, K)
+            
+            # Vectorized comparison: (batch, 1, K) == (1, calib, K)
+            proximity_matrix = (batch_L[:, np.newaxis, :] == self.res_leaves[np.newaxis, :, :]).sum(axis=2)
+        else:
+            # Convert numpy arrays to JAX arrays (this is the only overhead)
+            batch_j = jnp.array(leaves_test[batch_start:batch_end])
+            calib_j = jnp.array(self.res_leaves)
+            
+            # Run the JIT-optimized function
+            proximity_matrix = self.fast_breiman_proximity(batch_j, calib_j)
+            
+            # Convert back to numpy for the rest of your pipeline
+            return np.array(proximity_matrix)
+            
         return proximity_matrix.astype(np.int16)
+
+    @jax.jit
+    @staticmethod
+    def fast_breiman_proximity(batch_leaves, calib_leaves):
+        """
+        JIT-compiled proximity calculation.
+        batch_leaves: (batch_size, K)
+        calib_leaves: (calib_size, K)
+        """
+        # Proximity is the count of shared leaves across K trees
+        # JAX will fuse this comparison and sum to avoid huge memory allocation
+        return (batch_leaves[:, None, :] == calib_leaves[None, :, :]).sum(axis=2).astype(jnp.int16)
 
     def quantile_CI(self, local_res, alpha=0.05):
         """

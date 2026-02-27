@@ -14,7 +14,6 @@ from CSI.locart import LocartSplit
 from CSI.nuissance import TRUST_nuisance_cutoffs, TRUST_plus_nuisance_cutoff
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-import torch
 from CSI.simulations import GLM_stat
 import itertools
 from tqdm import tqdm
