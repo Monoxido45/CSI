@@ -26,7 +26,7 @@ parser.add_argument("-total_h_cutoffs", "--total_h_cutoffs", type=int, default=4
 parser.add_argument("-total_grid_size", "--total_grid_size", type=int, default=140000, 
                     help="total grid size to use for computing cutoffs with boosting and naive method")
 parser.add_argument("-naive_n", "--naive_n", type=int, default=500, help="number of samples to use for computing cutoffs with naive method")
-parser.add_argument("-seed", "--seed", type=int, default=45, help="seed for random generator")
+parser.add_argument("-seed", "--seed", type=int, default=125, help="seed for random generator")
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
 parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing distance to oracle")
 parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples to use for generating validation grid")
@@ -316,7 +316,7 @@ beta_b_nuis_space = np.linspace(-1.25, 1.25,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
 beta_0_nuis_space = np.linspace(-1.5, 1.5,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
-phi_nuis_space = np.linspace(0.1,1.65,
+phi_nuis_space = np.linspace(0.05,1.65,
                                 int(np.ceil(total_grid_size ** (1 / par_size))))
 par_list = [beta_0_nuis_space]
 for i in range(1, par_size - 1):
