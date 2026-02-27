@@ -1,6 +1,4 @@
 import numpy as np
-from sklearn.datasets import make_regression
-from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.metrics import pairwise_distances
 import pandas as pd
@@ -40,7 +38,7 @@ def naive_nuisance(
     nuisance_idx,
     par_size = 6,
     B=1000,
-    naive_n=100,
+    naive_n=500,
     glm_class = None,
 ):
     n_grid = int(B / naive_n)
