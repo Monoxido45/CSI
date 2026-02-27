@@ -131,6 +131,8 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
                     min_samples_leaf=config['min_samples_leaf'],
                     max_depth=config['max_depth'],
                     K=np.ceil(config['n_estimators'] / 2).astype(int),
+                    by_batch=True,
+                    use_jax=False,
                 )
                 
                 # 3. Evaluate on the valid grid (using pre-simulated evaluation stats)
@@ -172,9 +174,15 @@ def run_sensitivity_analysis(n_repetitions=10, seed=42):
     return final_summary
 
 # Execute the analysis
-summary_df = run_sensitivity_analysis(n_repetitions=10)
+summary_df = run_sensitivity_analysis(n_repetitions=20)
 
 # Display results sorted by parameter
-print("\n--- Sensitivity Analysis Summary (Averaged over 10 reps) ---")
+print("\n--- Sensitivity Analysis Summary (Averaged over 20 reps) ---")
 print(summary_df.sort_values(['Parameter', 'Value']))
+
+out_dir = os.path.join(original_path, "sensitivity_results")
+os.makedirs(out_dir, exist_ok=True)
+out_path = os.path.join(out_dir, f"sensitivity_hyperpar_summary.csv")
+summary_df.to_csv(out_path, index=False)
+print(f"Sensitivity results saved to: {out_path}")
 
