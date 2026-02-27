@@ -287,8 +287,8 @@ class ConformalLoforest(BaseEstimator):
             
         return proximity_matrix.astype(np.int16)
 
-    @jax.jit
     @staticmethod
+    @jax.jit
     def fast_breiman_proximity(batch_leaves, calib_leaves):
         """
         JIT-compiled proximity calculation.
