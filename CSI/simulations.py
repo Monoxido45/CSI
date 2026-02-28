@@ -109,7 +109,7 @@ class GLM_stat:
             beta_1 = None
 
         attempts = 0
-        max_attempts = B * 5  # Safety break to prevent infinite loops if theta is truly degenerate
+        max_attempts = B * 2  # Safety break to prevent infinite loops if theta is truly degenerate
         
         while len(lambda_results) < B and attempts < max_attempts:
             attempts += 1

@@ -72,7 +72,7 @@ def naive_method(
                                         int(np.ceil(n_grid ** (1 / par_size))))
         beta_0_nuis_space = np.linspace(-1.5, 1.5,
                                         int(np.ceil(n_grid ** (1 / par_size))))
-        phi_nuis_space = np.linspace(0.15,1.5,
+        phi_nuis_space = np.linspace(0.05,1.675,
                                      int(np.ceil(n_grid ** (1 / par_size))))
         
         par_list = [beta_0_nuis_space]
@@ -98,21 +98,21 @@ def naive_method(
         
     return quantiles
 
-# beta_0 parameters space and prior: N(0,4)
-# all other beta parameters space and prior: N(0,1)
+# beta_0 parameters space and prior: N(0,2)
+# all other beta parameters space and prior: N(0,0.5)
 # phi parameter space and prior: truncated exponential with scale 1, truncated at 1.75
 def prior(n, rng, intercept_value = None, dim = 4):
     if intercept_value is None:
         betas = rng.normal(loc = 
                        np.repeat(0, dim+1), 
                        scale = np.concatenate(
-                           (np.array([2.0]), np.repeat(1.0, dim))
+                           (np.sqrt(np.array([2.0])), np.sqrt(np.repeat(0.5, dim)))
                            ),
                         size = (n, dim+1)
                        )
     else:
         betas = rng.normal(loc = 0,
-                           scale = 1,
+                           scale = np.sqrt(0.5),
                            size = (n, dim))
         betas = np.column_stack((np.repeat(intercept_value, n),
                                  betas))
@@ -177,7 +177,7 @@ def compute_coverage_MAE(
     stat_list = []
     # constructing the stats list
     print("Constructing stats list for validation thetas")
-    for theta in valid_thetas:
+    for theta in tqdm(valid_thetas, desc="Computing lambda values for validation thetas"):
         stat = glm_class.LR_sim_lambda(
             beta_value = theta[:-1],
             phi_value = theta[-1],
