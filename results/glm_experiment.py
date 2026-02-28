@@ -164,7 +164,11 @@ def compute_coverage_MAE(
     
     # random validation grid
     n_valid = 500
-    beta_space, phi_space = prior(n = n_valid, rng = valid_rng)
+    beta_space, phi_space = prior(
+        n = n_valid, 
+        rng = valid_rng,
+        dim = beta_dim - 1,
+        )
     valid_thetas = np.concatenate(
         (beta_space, phi_space.reshape(-1, 1)), 
         axis=1,
