@@ -173,17 +173,33 @@ def compute_coverage_MAE(
         (beta_space, phi_space.reshape(-1, 1)), 
         axis=1,
         )
+    
+    # ensure glm_results dir and stat_file path
+    out_dir = os.path.join(os.getcwd(), "glm_results")
+    os.makedirs(out_dir, exist_ok=True)
+    stat_file = os.path.join(out_dir, f"stat_list_beta_dim_{beta_dim}.pkl")
 
-    stat_list = []
-    # constructing the stats list
-    print("Constructing stats list for validation thetas")
-    for theta in tqdm(valid_thetas, desc="Computing lambda values for validation thetas"):
-        stat = glm_class.LR_sim_lambda(
-            beta_value = theta[:-1],
-            phi_value = theta[-1],
-            B = 1000,
-        )
-        stat_list.append(stat)
+    if os.path.exists(stat_file):
+        # load existing stat_list to avoid re-building
+        with open(stat_file, "rb") as f:
+            stat_list = pickle.load(f)
+        print(f"Loaded existing stat_list from {stat_file}")
+    else:
+        # build and save stat_list for the validation thetas
+        print(f"{stat_file} not found — building stat_list for validation thetas")
+        stat_list = []
+        for theta in tqdm(valid_thetas, desc="Computing lambda values for validation thetas"):
+            stat = glm_class.LR_sim_lambda(
+                beta_value=theta[:-1],
+                phi_value=theta[-1],
+                B=1000,
+            )
+            stat_list.append(stat)
+
+        with open(stat_file, "wb") as f:
+            pickle.dump(stat_list, f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"Saved stat_list to {stat_file}")
+
 
     mae_trust, mae_trust_plus = np.zeros(n_rep), np.zeros(n_rep)
     mae_boosting = np.zeros(n_rep)
