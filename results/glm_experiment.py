@@ -29,8 +29,8 @@ parser.add_argument("-total_grid_size", "--total_grid_size", type=int, default=4
 parser.add_argument("-naive_n", "--naive_n", type=int, default=500, help="number of samples to use for computing cutoffs with naive method")
 parser.add_argument("-seed", "--seed", type=int, default=75, help="seed for random generator")
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
-parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing distance to oracle")
-parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples to use for generating validation grid")
+parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing coverage MAE")
+parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples of observed data")
 parser.add_argument("-B", "--B", type=int, default=10000, help="number of samples to use for training the methods and computing cutoffs")
 args = parser.parse_args()
 
@@ -182,6 +182,37 @@ def compute_coverage_MAE(
         stat_list = stat_list,
         seed = 45,
 ):
+    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
+    valid_rng = np.random.default_rng(67)
+
+    glm_class = GLM_stat(
+    prior_func=prior,
+    X_mat = X_mat,
+    rng = rng,
+    dist = "gamma",
+    link_func = "log",
+    )
+    
+    # random validation grid
+    n_valid = 500
+    beta_space, phi_space = prior(n = n_valid, rng = valid_rng)
+    valid_thetas = np.concatenate(
+        (beta_space, phi_space.reshape(-1, 1)), 
+        axis=1,
+        )
+
+    stat_list = []
+    # constructing the stats list
+    print("Constructing stats list for validation thetas")
+    for theta in valid_thetas:
+        stat = glm_class.LR_sim_lambda(
+            beta_value = theta[:-1],
+            phi_value = theta[-1],
+            B = 1000,
+        )
+        stat_list.append(stat)
+
     mae_trust, mae_trust_plus = np.zeros(n_rep), np.zeros(n_rep)
     mae_boosting = np.zeros(n_rep)
     mae_naive = np.zeros(n_rep)
@@ -215,7 +246,7 @@ def compute_coverage_MAE(
         trust_plus_object = ConformalLoforest(
             LambdaScore, 
             None, 
-            alpha=0.05, 
+            alpha=alpha, 
             is_fitted=True, 
             split_calib=False,
         )
