@@ -31,7 +31,7 @@ parser.add_argument("-seed", "--seed", type=int, default=75, help="seed for rand
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
 parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing coverage MAE")
 parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples of observed data")
-parser.add_argument("-B", "--B", type=int, default=10000, help="number of samples to use for training the methods and computing cutoffs")
+parser.add_argument("-B", "--B", type=int, default=15000, help="number of samples to use for training the methods and computing cutoffs")
 args = parser.parse_args()
 
 beta_dim = args.beta_dim
@@ -181,6 +181,7 @@ def compute_coverage_MAE(
         valid_thetas = valid_thetas,
         stat_list = stat_list,
         seed = 45,
+        B = 10000,
 ):
     np.random.seed(seed)
     rng = np.random.default_rng(seed)
@@ -347,6 +348,7 @@ mae_df= compute_coverage_MAE(
     valid_thetas = valid_thetas,
     stat_list = stat_list,
     seed = seed,
+    B = B
 )
 
 
