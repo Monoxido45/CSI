@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import pairwise_distances
 import pandas as pd
 import statsmodels.api as sm
 import scipy.stats as st
@@ -12,7 +11,6 @@ from CSI.locart import LocartSplit
 from scipy import stats
 
 # importing functions to adapt estimated cutoffs
-from CSI.nuissance import TRUST_nuisance_cutoffs, TRUST_plus_nuisance_cutoff
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 from CSI.simulations import GLM_stat
