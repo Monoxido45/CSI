@@ -163,7 +163,7 @@ def compute_coverage_MAE(
     )
     
     # random validation grid
-    n_valid = 500
+    n_valid = 300
     beta_space, phi_space = prior(
         n = n_valid, 
         rng = valid_rng,
