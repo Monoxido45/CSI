@@ -129,7 +129,6 @@ class GLM_stat:
                 complete_model = glm_model.fit()
                 phi_mle = complete_model.scale
 
-                print("Estimated phi_mle:", phi_mle, "Fixed phi_value:", phi_value)
                 # nuisance case: we need to fit a constrained model
                 if R_mat is not None:
                     partial_model = glm_model.fit_constrained((R_mat, beta_1))
@@ -219,7 +218,6 @@ class GLM_stat:
                     complete_model = glm_model.fit()
                     phi_mle = complete_model.scale
 
-                    print("Estimated phi_mle:", phi_mle, "Simulated phi_value:", curr_phi)
                     # Construct R_mat and q_vec for constrained fit
                     if idx_1 is not None:
                         R_mat = np.zeros((idx_1.shape[0], curr_beta.shape[0]))
