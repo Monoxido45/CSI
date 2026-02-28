@@ -20,16 +20,16 @@ import os
 import pickle
 
 parser = ArgumentParser()
-parser.add_argument("-beta_dim", "--beta_dim", type=int, default=10, help="number of beta parameters in the GLM model")
+parser.add_argument("-beta_dim", "--beta_dim", type=int, default=5, help="number of beta parameters in the GLM model")
 parser.add_argument("-total_h_cutoffs", "--total_h_cutoffs", type=int, default=30, help="number of horizontal cutoffs to use for TRUST++")
 parser.add_argument("-total_grid_size", "--total_grid_size", type=int, default=40000, 
                     help="total grid size to use for computing cutoffs with boosting and naive method")
 parser.add_argument("-naive_n", "--naive_n", type=int, default=500, help="number of samples to use for computing cutoffs with naive method")
 parser.add_argument("-seed", "--seed", type=int, default=75, help="seed for random generator")
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
-parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing coverage MAE")
-parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples of observed data")
-parser.add_argument("-B", "--B", type=int, default=15000, help="number of samples to use for training the methods and computing cutoffs")
+parser.add_argument("-n_rep", "--n_rep", type=int, default=30, help="number of repetitions for computing coverage MAE")
+parser.add_argument("-n_samples", "--n_samples", type=int, default=30, help="number of samples of observed data")
+parser.add_argument("-B", "--B", type=int, default=10000, help="number of samples to use for training the methods and computing cutoffs")
 args = parser.parse_args()
 
 beta_dim = args.beta_dim
@@ -288,21 +288,21 @@ def compute_coverage_MAE(
             stat = stat_list[j]
             cutoff_trust = cutoff_TRUST[j]
             cutoff_trust_plus = cutoff_TRUST_plus[j]
-            cutoff_boosting = cutoff_boosting[j]
-            cutoff_naive = cutoff_naive[j]
-            cutoff_asymp = asymp_quantiles[j]
+            cutoff_boosting_sel = cutoff_boosting[j]
+            cutoff_naive_sel = cutoff_naive[j]
+            cutoff_asymp_sel = asymp_quantiles[j]
 
             coverage_trust[j] = np.mean(stat <= cutoff_trust)
             coverage_trust_plus[j] = np.mean(stat <= cutoff_trust_plus)
-            coverage_boosting[j] = np.mean(stat <= cutoff_boosting)
-            coverage_naive[j] = np.mean(stat <= cutoff_naive)
-            coverage_asymp[j] = np.mean(stat <= cutoff_asymp)
+            coverage_boosting[j] = np.mean(stat <= cutoff_boosting_sel)
+            coverage_naive[j] = np.mean(stat <= cutoff_naive_sel)
+            coverage_asymp[j] = np.mean(stat <= cutoff_asymp_sel)
 
-        mae_trust[i] = np.mean(np.abs(coverage_trust - 0.95))
-        mae_trust_plus[i] = np.mean(np.abs(coverage_trust_plus - 0.95))
-        mae_boosting[i] = np.mean(np.abs(coverage_boosting - 0.95))
-        mae_naive[i] = np.mean(np.abs(coverage_naive - 0.95))
-        mae_asymp[i] = np.mean(np.abs(coverage_asymp - 0.95))
+        mae_trust[i] = np.mean(np.abs(coverage_trust - (1-alpha)))
+        mae_trust_plus[i] = np.mean(np.abs(coverage_trust_plus - (1-alpha)))
+        mae_boosting[i] = np.mean(np.abs(coverage_boosting - (1-alpha)))
+        mae_naive[i] = np.mean(np.abs(coverage_naive - (1-alpha)))
+        mae_asymp[i] = np.mean(np.abs(coverage_asymp - (1-alpha)))
 
     
     methods = ["TRUST", "TRUST++", "Boosting", "MC", "Asymptotic"]
