@@ -21,9 +21,6 @@ import pickle
 
 parser = ArgumentParser()
 parser.add_argument("-beta_dim", "--beta_dim", type=int, default=5, help="number of beta parameters in the GLM model")
-parser.add_argument("-total_h_cutoffs", "--total_h_cutoffs", type=int, default=30, help="number of horizontal cutoffs to use for TRUST++")
-parser.add_argument("-total_grid_size", "--total_grid_size", type=int, default=40000, 
-                    help="total grid size to use for computing cutoffs with boosting and naive method")
 parser.add_argument("-naive_n", "--naive_n", type=int, default=500, help="number of samples to use for computing cutoffs with naive method")
 parser.add_argument("-seed", "--seed", type=int, default=75, help="seed for random generator")
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
@@ -33,8 +30,6 @@ parser.add_argument("-B", "--B", type=int, default=10000, help="number of sample
 args = parser.parse_args()
 
 beta_dim = args.beta_dim
-total_h_cutoffs = args.total_h_cutoffs
-total_grid_size = args.total_grid_size
 naive_n = args.naive_n
 seed = args.seed
 alpha = args.alpha
@@ -241,7 +236,7 @@ def compute_coverage_MAE(
         trust_plus_object.calibrate(
             model_thetas,
             model_lambdas,
-            min_samples_leaf=300,
+            min_samples_leaf=550,
             n_estimators=200,
             K=100,
         )
@@ -297,6 +292,9 @@ def compute_coverage_MAE(
             coverage_boosting[j] = np.mean(stat <= cutoff_boosting_sel)
             coverage_naive[j] = np.mean(stat <= cutoff_naive_sel)
             coverage_asymp[j] = np.mean(stat <= cutoff_asymp_sel)
+        print(
+            f"Coverage TRUST: {np.mean(coverage_trust)}, Coverage TRUST++: {np.mean(coverage_trust_plus)}, Coverage Boosting: {np.mean(coverage_boosting)}, Coverage Naive: {np.mean(coverage_naive)}, Coverage Asymptotic: {np.mean(coverage_asymp)}"
+        )
 
         mae_trust[i] = np.mean(np.abs(coverage_trust - (1-alpha)))
         mae_trust_plus[i] = np.mean(np.abs(coverage_trust_plus - (1-alpha)))
