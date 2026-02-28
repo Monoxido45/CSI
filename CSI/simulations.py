@@ -122,7 +122,6 @@ class GLM_stat:
                     Y_sim, X_glm, 
                     family=sm.families.Gamma(link=sm.families.links.Log()),
                     offset=offset_array,
-                    scale='mle',
                 )
                 
                 # obtaining each parameters for complete and partial model
@@ -211,7 +210,6 @@ class GLM_stat:
                         X_glm,
                         family=sm.families.Gamma(link=sm.families.links.Log()), # Use Log class
                         offset=offset_array,
-                        scale='mle',
                     )
 
                     # Attempt to fit. This is where the ValueError usually triggers.
