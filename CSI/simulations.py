@@ -85,7 +85,7 @@ class GLM_stat:
         beta_value,
         phi_value,
         B,
-        idx_1,
+        idx_1 = None,
         fit_intercept=True,
     ):
         lambda_results = []
@@ -100,9 +100,13 @@ class GLM_stat:
             offset_array = None
 
         # Construct R_mat for the constrained/partial model
-        R_mat = np.zeros((idx_1.shape[0], beta_value.shape[0]))
-        R_mat[np.arange(0, idx_1.shape[0]), idx_1] = 1.0
-        beta_1 = beta_value[idx_1]
+        if idx_1 is not None:
+            R_mat = np.zeros((idx_1.shape[0], beta_value.shape[0]))
+            R_mat[np.arange(0, idx_1.shape[0]), idx_1] = 1.0
+            beta_1 = beta_value[idx_1]
+        else:
+            R_mat = None
+            beta_1 = None
 
         attempts = 0
         max_attempts = B * 5  # Safety break to prevent infinite loops if theta is truly degenerate
@@ -110,33 +114,42 @@ class GLM_stat:
         while len(lambda_results) < B and attempts < max_attempts:
             attempts += 1
             try:
-                # 1. Simulate one realization of Y
+                # Simulate one realization of Y
                 Y_sim = self.simulator(beta_value.reshape(1, -1), np.array([phi_value]))[0]
                 
-                # 2. Fit complete and partial models
+                # Fit complete and partial models if R_mat is defined
                 glm_model = sm.GLM(
                     Y_sim, X_glm, 
                     family=sm.families.Gamma(link=sm.families.links.Log()),
-                    offset=offset_array
+                    offset=offset_array,
+                    scale='mle',
                 )
                 
+                # obtaining each parameters for complete and partial model
                 complete_model = glm_model.fit()
-                partial_model = glm_model.fit_constrained((R_mat, beta_1))
-                
-                # 3. Compute likelihoods
-                params_complete = complete_model.params
-                params_test = partial_model.params
+                phi_mle = complete_model.scale
+
+                print("Estimated phi_mle:", phi_mle, "Fixed phi_value:", phi_value)
+                # nuisance case: we need to fit a constrained model
+                if R_mat is not None:
+                    partial_model = glm_model.fit_constrained((R_mat, beta_1))
+                    params_complete = complete_model.params
+                    params_test = partial_model.params
+                # non-nuisance case: we can directly compare the complete model with the test parameters
+                else:
+                    params_complete = complete_model.params
+                    params_test = beta_value
                 
                 if not fit_intercept:
                     params_complete = np.insert(params_complete, 0, intercept_val)
                     params_test = np.insert(params_test, 0, intercept_val)
                     
-                mle_l = self.loglikelihood(params_complete, phi_value, Y_sim)
+                mle_l = self.loglikelihood(params_complete, phi_mle, Y_sim)
                 test_l = self.loglikelihood(params_test, phi_value, Y_sim)
                 
                 lrt_val = 2 * (mle_l - test_l)
                 
-                # 4. Filter for numerical sanity
+                # filter for numerical sanity
                 if not (np.isnan(lrt_val) or np.isinf(lrt_val) or lrt_val < 0):
                     lambda_results.append(lrt_val)
                     
@@ -151,7 +164,13 @@ class GLM_stat:
         # If we couldn't reach B but have some results, we return what we have
         return np.array(lambda_results)
     
-    def LR_sample(self, B, idx_1, fit_intercept=True, intercept_value=None):
+    def LR_sample(
+            self, 
+            B, 
+            idx_1 = None,
+            fit_intercept=True, 
+            intercept_value=None,
+            ):
         lambda_array = np.zeros(B)
         # We need to keep track of the final beta/phi values used
         final_betas = []
@@ -161,8 +180,7 @@ class GLM_stat:
             success = False
             while not success:
                 try:
-                    # 1. Simulate a single parameter set from the prior
-                    # Note: We simulate 1 at a time to handle specific failures
+                    # Simulate a single parameter set from the prior
                     beta_vals, phi_vals = self.prior(
                         1, 
                         rng=self.rng, 
@@ -172,15 +190,16 @@ class GLM_stat:
                     curr_beta = beta_vals[0]
                     curr_phi = phi_vals[0]
 
-                    # 2. Simulate Y data for this parameter set
+                    # Simulate Y data for this parameter set
                     Y_sim = self.simulator(curr_beta.reshape(1, -1), curr_phi.reshape(1))[0]
-                    
-                    if idx_1.ndim == 1:
-                        beta_1 = curr_beta[idx_1]
-                    else:
-                        beta_1 = curr_beta[idx_1]
 
-                    # 3. Setup the GLM models
+                    if idx_1 is not None:
+                        if idx_1.ndim == 1:
+                            beta_1 = curr_beta[idx_1]
+                        else:
+                            beta_1 = curr_beta[idx_1]
+
+                    # Setup the GLM models
                     if not fit_intercept:
                         X_glm = self.X_mat[:, 1:]
                         offset_array = np.repeat(intercept_value, X_glm.shape[0])
@@ -193,27 +212,33 @@ class GLM_stat:
                         X_glm,
                         family=sm.families.Gamma(link=sm.families.links.Log()), # Use Log class
                         offset=offset_array,
+                        scale='mle',
                     )
 
-                    # 4. Attempt to fit. This is where the ValueError usually triggers.
+                    # Attempt to fit. This is where the ValueError usually triggers.
                     complete_model = glm_model.fit()
+                    phi_mle = complete_model.scale
 
+                    print("Estimated phi_mle:", phi_mle, "Simulated phi_value:", curr_phi)
                     # Construct R_mat and q_vec for constrained fit
-                    R_mat = np.zeros((idx_1.shape[0], curr_beta.shape[0]))
-                    R_mat[np.arange(0, idx_1.shape[0]), idx_1] = 1.0
-                    q_vec = beta_1
+                    if idx_1 is not None:
+                        R_mat = np.zeros((idx_1.shape[0], curr_beta.shape[0]))
+                        R_mat[np.arange(0, idx_1.shape[0]), idx_1] = 1.0
+                        q_vec = beta_1
 
-                    partial_model = glm_model.fit_constrained((R_mat, q_vec))
-
-                    # 5. Compute Log-Likelihoods
-                    params_complete = complete_model.params
-                    params_test = partial_model.params
+                        partial_model = glm_model.fit_constrained((R_mat, q_vec))
+                    
+                        params_complete = complete_model.params
+                        params_test = partial_model.params
+                    else:
+                        params_complete = complete_model.params
+                        params_test = curr_beta
 
                     if not fit_intercept:
                         params_complete = np.insert(params_complete, 0, intercept_value)
                         params_test = np.insert(params_test, 0, intercept_value)
 
-                    mle_l = self.loglikelihood(params_complete, curr_phi, Y_sim)
+                    mle_l = self.loglikelihood(params_complete, phi_mle, Y_sim)
                     test_l = self.loglikelihood(params_test, curr_phi, Y_sim)
 
                     lambda_array[i] = 2 * (mle_l - test_l)
