@@ -31,7 +31,7 @@ parser.add_argument("-seed", "--seed", type=int, default=75, help="seed for rand
 parser.add_argument("-alpha", "--alpha",type=float, default=0.05, help="miscoverage level for conformal prediction")
 parser.add_argument("-n_rep", "--n_rep", type=int, default=15, help="number of repetitions for computing coverage MAE")
 parser.add_argument("-n_samples", "--n_samples", type=int, default=50, help="number of samples of observed data")
-parser.add_argument("-B", "--B", type=int, default=15000, help="number of samples to use for training the methods and computing cutoffs")
+parser.add_argument("-B", "--B", type=int, default=1000, help="number of samples to use for training the methods and computing cutoffs")
 args = parser.parse_args()
 
 beta_dim = args.beta_dim
@@ -145,41 +145,10 @@ result = glm_gamma.fit()
 # Summarize the results
 print(result.summary())
 
-# fitting GLM class
-glm_class = GLM_stat(
-    prior_func=prior,
-    X_mat = X_mat,
-    rng = rng,
-    dist = "gamma",
-    link_func = "log",
-)
-glm_class
-
 ######################### Computing cutoffs for each method and each mu value in the validation grid #########################
-# random validation grid
-valid_rng = np.random.default_rng(67)
-n_valid = 500
-beta_space, phi_space = prior(n = n_valid, rng = valid_rng)
-valid_thetas = np.concatenate(
-    (beta_space, phi_space.reshape(-1, 1)), 
-    axis=1,
-    )
-
-stat_list = []
-# constructing the stats list
-for theta in valid_thetas:
-    stat = glm_class.LR_sim_lambda(
-        beta_value = theta[:-1],
-        phi_value = theta[-1],
-        B = 1000,
-    )
-    stat_list.append(stat)
-
 
 def compute_coverage_MAE(
         n_rep = 15,
-        valid_thetas = valid_thetas,
-        stat_list = stat_list,
         seed = 45,
         B = 10000,
 ):
@@ -345,12 +314,9 @@ def compute_coverage_MAE(
 
 mae_df= compute_coverage_MAE(
     n_rep = n_rep,
-    valid_thetas = valid_thetas,
-    stat_list = stat_list,
     seed = seed,
     B = B
 )
-
 
 current_dir = os.getcwd()
 
