@@ -216,6 +216,7 @@ class GLM_stat:
                     # Attempt to fit. This is where the ValueError usually triggers.
                     complete_model = glm_model.fit()
                     phi_mle = complete_model.scale
+                    print(phi_mle)
 
                     # Construct R_mat and q_vec for constrained fit
                     if idx_1 is not None:
