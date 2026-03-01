@@ -126,8 +126,10 @@ class GLM_stat:
                 
                 # obtaining each parameters for complete and partial model
                 complete_model = glm_model.fit()
-                phi_mle = complete_model.scale
-                print(phi_mle)
+                if self.dim <= 10:
+                    phi_mle = complete_model.scale
+                else:
+                    phi_mle = phi_value
 
                 # nuisance case: we need to fit a constrained model
                 if R_mat is not None:
@@ -215,8 +217,10 @@ class GLM_stat:
 
                     # Attempt to fit. This is where the ValueError usually triggers.
                     complete_model = glm_model.fit()
-                    phi_mle = complete_model.scale
-                    print(phi_mle)
+                    if self.dim <= 10:
+                        phi_mle = complete_model.scale
+                    else:
+                        phi_mle = curr_phi
 
                     # Construct R_mat and q_vec for constrained fit
                     if idx_1 is not None:
