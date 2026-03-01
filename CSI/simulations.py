@@ -127,6 +127,7 @@ class GLM_stat:
                 # obtaining each parameters for complete and partial model
                 complete_model = glm_model.fit()
                 phi_mle = complete_model.scale
+                print(phi_mle)
 
                 # nuisance case: we need to fit a constrained model
                 if R_mat is not None:
