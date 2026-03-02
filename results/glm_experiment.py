@@ -109,13 +109,20 @@ def naive_method(
 def prior(n, rng, intercept_value = None, dim = 4):
     if intercept_value is None:
         if dim <= 10:
+            betas = rng.normal(
+              loc = np.repeat(0, dim+1), 
+              scale = np.concatenate(
+              (np.sqrt(np.array([4])), np.sqrt(np.repeat(1, dim)))),
+              size = (n, dim+1)
+              )
+        elif dim > 10 and dim <= 30:
             betas = rng.normal(loc = 
                        np.repeat(0, dim+1), 
                        scale = np.concatenate(
-                           (np.sqrt(np.array([4])), np.sqrt(np.repeat(1, dim)))
+                           (np.array([1.25]), np.repeat(0.5, dim))
                            ),
                         size = (n, dim+1)
-                       )
+                        )
         else:
             betas = rng.normal(loc = 
                        np.repeat(0, dim+1), 
@@ -129,6 +136,12 @@ def prior(n, rng, intercept_value = None, dim = 4):
             betas = rng.normal(loc = 0,
                            scale = np.sqrt(1),
                            size = (n, dim))
+            betas = np.column_stack((np.repeat(intercept_value, n),
+                                 betas))
+        elif dim > 10 and dim <= 30:
+            betas = rng.normal(loc = 0,
+                              scale = 0.5,
+                              size = (n, dim))
             betas = np.column_stack((np.repeat(intercept_value, n),
                                  betas))
         else:
