@@ -1,10 +1,6 @@
 import numpy as np
 import sbibm
-from sklearn.metrics import pairwise_distances
 import pandas as pd
-import statsmodels.api as sm
-import scipy.stats as st
-from argparse import ArgumentParser
 
 import time
 from CSI.scores import LambdaScore
