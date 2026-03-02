@@ -19,7 +19,6 @@ from os import path
 
 original_path = os.getcwd()
 
-
 def obtain_quantiles(
     kind_model,
     thetas,
