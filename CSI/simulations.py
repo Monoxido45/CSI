@@ -217,7 +217,7 @@ class GLM_stat:
 
                     # Attempt to fit. This is where the ValueError usually triggers.
                     complete_model = glm_model.fit()
-                    if self.dim <= 10:
+                    if self.dim <= 30:
                         phi_mle = complete_model.scale
                     else:
                         phi_mle = curr_phi

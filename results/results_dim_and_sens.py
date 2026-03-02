@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 
 path_list = ["mae_df_beta_dim_5_B_10000.pkl",
              "mae_df_beta_dim_10_B_10000.pkl",
+             "mae_df_beta_dim_30_B_10000.pkl",
              "mae_df_beta_dim_50_B_10000.pkl",
              ]
-dim_list = [5, 10, 50]
+dim_list = [5, 10, 30, 50]
 
 def load_pickle(path: Path):
     if joblib is not None:
