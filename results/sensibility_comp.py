@@ -26,6 +26,7 @@ stats_eval_path = "/results/LFI_objects/stat_data/"
 alpha = 0.05
 B = 15000
 N = 5
+
 # two moons task
 task = sbibm.get_task(
 "two_moons"

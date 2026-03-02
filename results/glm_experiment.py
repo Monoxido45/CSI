@@ -229,11 +229,15 @@ def compute_coverage_MAE(
             model_thetas = thetas_sim
           
         nan_lambda = np.isnan(model_lambdas)
+        inf_lambda = np.isinf(model_lambdas)
+        invalid_mask = nan_lambda | inf_lambda
         sum_nan = np.sum(nan_lambda)
-        if sum_nan > 0:
+        sum_inf = np.sum(inf_lambda)
+        if sum_nan > 0 or sum_inf > 0:
             print(f"Warning: simulated data has {sum_nan} nan values")
-            model_lambdas = model_lambdas[~nan_lambda]
-            model_thetas = model_thetas[~nan_lambda, :]
+            print(f"Warning: simulated data has {sum_inf} inf values")
+            model_lambdas = model_lambdas[~invalid_mask]
+            model_thetas = model_thetas[~invalid_mask, :]
 
 
         print("Fitting TRUST ")
