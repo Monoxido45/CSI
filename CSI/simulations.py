@@ -7,7 +7,6 @@ from tqdm import tqdm
 # package to fit glm
 import statsmodels.api as sm
 
-
 class GLM_stat:
     def __init__(
         self,
@@ -260,7 +259,6 @@ class GLM_stat:
         )
 
         return par_values, lambda_array
-
 
 class Simulations:
     def __init__(
@@ -856,7 +854,6 @@ class Simulations:
 
         thetas = self.rng.normal(mu_value, np.repeat(np.sqrt(sigma_value), B), size=B)
         return thetas
-
 
 # implementing also the naive approach to fit each case:
 def naive(stat, kind_model, alpha, rng, B=1000, N=100, naive_n=500):
