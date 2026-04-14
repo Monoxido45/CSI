@@ -1,11 +1,25 @@
 # CSI: Conformalizing Statistical Inference with TRUST and TRUST++
 
+[![arXiv](https://img.shields.io/badge/arXiv-2411.19368-b31b1b.svg)](https://arxiv.org/abs/2411.19368)
+
 This repository contains the implementation of TRUST and TRUST++, along with scripts for reproducing the figures and tables from the paper *Conformal Calibration of Statistical Confidence Sets*.
 
 ## Overview
 
 CSI provides tools for performing conformal statistical inference using TRUST and TRUST++. The package includes functionality for running experiments and evaluating statistical confidence sets in a distribution-free framework.
 
+## Citation
+
+If you use this work, please cite:
+
+```bibtex
+@article{cabezas2024conformal,
+  title     = {Conformal Calibration of Statistical Confidence Sets},
+  author    = {Cabezas, Luben M. C. and Soares, Guilherme P. and Ramos, Thiago R. and Stern, Rafael B. and Izbicki, Rafael},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2411.19368}
+}
+```
 ## Installation
 
 To set up the CSI package and its dependencies:
