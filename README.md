@@ -13,11 +13,14 @@ CSI provides tools for performing conformal statistical inference using TRUST an
 If you use this work, please cite:
 
 ```bibtex
-@article{cabezas2024conformal,
-  title     = {Conformal Calibration of Statistical Confidence Sets},
-  author    = {Cabezas, Luben M. C. and Soares, Guilherme P. and Ramos, Thiago R. and Stern, Rafael B. and Izbicki, Rafael},
-  year      = {2024},
-  url       = {https://arxiv.org/abs/2411.19368}
+@article{
+cabezas2026conformal,
+title={Conformal Calibration of Statistical Confidence Sets},
+author={Luben Miguel Cruz Cabezas and Guilherme Soares and Thiago Ramos and Rafael Bassi Stern and Rafael Izbicki},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2026},
+url={https://openreview.net/forum?id=J4lK62PVE6},
 }
 ```
 ## Installation
